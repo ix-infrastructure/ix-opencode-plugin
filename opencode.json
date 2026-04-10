@@ -1,0 +1,70 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "share": "manual",
+  "instructions": [
+    "./AGENTS.md"
+  ],
+  "plugin": [
+    "./plugins/ix-plugin.ts"
+  ],
+  "agent": {
+    "ix-explorer": {
+      "description": "General-purpose graph-first codebase exploration agent. Use for open-ended questions about unfamiliar code, tracing data flows, or understanding how components connect.",
+      "prompt_file": "./agents/ix-explorer.json"
+    },
+    "ix-system-explorer": {
+      "description": "Builds a complete architectural mental model of a codebase or subsystem. Use when you need to orient in an unfamiliar codebase before making changes.",
+      "prompt_file": "./agents/ix-system-explorer.json"
+    },
+    "ix-bug-investigator": {
+      "description": "Root cause analysis agent. Traces execution paths from a symptom to failure candidates.",
+      "prompt_file": "./agents/ix-bug-investigator.json"
+    },
+    "ix-safe-refactor-planner": {
+      "description": "Generates a risk-ordered refactor plan with safe edit boundaries. Use before any multi-file change.",
+      "prompt_file": "./agents/ix-safe-refactor-planner.json"
+    },
+    "ix-architecture-auditor": {
+      "description": "Analyzes system design quality — coupling, cohesion, smells, hotspots. Produces a ranked list of improvement areas.",
+      "prompt_file": "./agents/ix-architecture-auditor.json"
+    }
+  },
+  "command": {
+    "ix-understand": {
+      "description": "Build a detailed architectural mental model of a system, subsystem, or the whole repo",
+      "file": "./commands/ix-understand.md"
+    },
+    "ix-investigate": {
+      "description": "Deep dive into a symbol, feature, or bug. Graph-first, minimal code reads.",
+      "file": "./commands/ix-investigate.md"
+    },
+    "ix-impact": {
+      "description": "Change risk analysis — blast radius, affected systems, and what to test.",
+      "file": "./commands/ix-impact.md"
+    },
+    "ix-plan": {
+      "description": "Generate a risk-ordered implementation plan for a set of targets.",
+      "file": "./commands/ix-plan.md"
+    },
+    "ix-debug": {
+      "description": "Root cause analysis — trace execution path to a failure, narrow candidates.",
+      "file": "./commands/ix-debug.md"
+    },
+    "ix-architecture": {
+      "description": "Analyze system design — structure, coupling, code smells, and high-risk hotspots.",
+      "file": "./commands/ix-architecture.md"
+    },
+    "ix-docs": {
+      "description": "Generate narrative-first, importance-weighted documentation.",
+      "file": "./commands/ix-docs.md"
+    }
+  },
+  "watcher": {
+    "ignore": [
+      ".git/**",
+      ".opencode/ix-cache/**",
+      "dist/**",
+      "node_modules/**"
+    ]
+  }
+}
