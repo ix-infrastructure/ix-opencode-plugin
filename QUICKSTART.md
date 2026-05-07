@@ -7,7 +7,7 @@ Get graph-first reasoning into OpenCode in under 5 minutes.
 ## Prerequisites
 
 - [OpenCode](https://opencode.ai) installed
-- [Ix Memory](https://github.com/ix-infrastructure/IX-Memory) CLI (`ix`) installed and connected to a workspace
+- [Ix Memory](https://github.com/ix-infrastructure/Ix) CLI (`ix`) installed and connected to a workspace
 - [Bun](https://bun.sh) installed (used by OpenCode's plugin runtime)
 
 Verify:

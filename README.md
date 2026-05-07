@@ -1,13 +1,13 @@
 # ix-opencode-plugin
 
-An OpenCode plugin that brings [Ix Memory](https://github.com/ix-infrastructure/IX-Memory)'s graph-first reasoning into OpenCode as a native cognitive layer.
+An OpenCode plugin that brings [Ix Memory](https://github.com/ix-infrastructure/Ix)'s graph-first reasoning into OpenCode as a native cognitive layer.
 
 OpenCode + Ix = reasoning engine + persistent code knowledge graph. Skills are cognitive abstractions (not CLI wrappers) that start with cheap graph signals before reading source, and stop early when the question is answered.
 
 ## Requirements
 
 - [OpenCode](https://opencode.ai) installed
-- [Ix Memory](https://github.com/ix-infrastructure/IX-Memory) CLI (`ix`) installed and connected to a workspace
+- [Ix Memory](https://github.com/ix-infrastructure/Ix) CLI (`ix`) installed and connected to a workspace
 - [Bun](https://bun.sh) installed (OpenCode's plugin runtime)
 
 ```bash
