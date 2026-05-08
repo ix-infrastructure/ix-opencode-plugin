@@ -188,7 +188,7 @@ Write-Step "Plugin source"
 
 if ($Source -ne "") {
     $SourceDir = $Source
-} elseif (Test-Path (Join-Path $PSScriptRoot "plugins\ix-plugin.ts")) {
+} elseif ($PSScriptRoot -ne "" -and (Test-Path (Join-Path $PSScriptRoot "plugins\ix-plugin.ts"))) {
     $SourceDir = $PSScriptRoot
 } else {
     $SourceDir = $DEFAULT_SOURCE
@@ -200,11 +200,19 @@ if (-not (Test-Path (Join-Path $SourceDir "plugins\ix-plugin.ts"))) {
         Write-Err "git not found. Clone manually: git clone $REPO_URL `"$SourceDir`""
     }
     Invoke-Step "git clone $REPO_URL $SourceDir" {
-        git clone --depth 1 $REPO_URL $SourceDir
+        git clone --depth 1 $REPO_URL $SourceDir 2>&1 | Out-Null
     }
     Write-Ok "Cloned to $SourceDir"
 } else {
     Write-Ok "Found at $SourceDir"
+    # Update shallow clone on re-installs so cached copies stay current
+    if ((Test-Path (Join-Path $SourceDir ".git")) -and (Get-Command git -ErrorAction SilentlyContinue)) {
+        Invoke-Step "git fetch + reset" {
+            git -C $SourceDir fetch --depth 1 origin --quiet 2>&1 | Out-Null
+            git -C $SourceDir reset --hard origin/HEAD --quiet 2>&1 | Out-Null
+        }
+        Write-Ok "Updated to latest"
+    }
 }
 
 # ── Install dependencies ──────────────────────────────────────────────────────
@@ -212,7 +220,10 @@ if (-not (Test-Path (Join-Path $SourceDir "plugins\ix-plugin.ts"))) {
 Write-Step "Installing dependencies"
 Invoke-Step "bun install" {
     Push-Location $SourceDir
-    bun install --silent
+    $bunOut = bun install --silent 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        Write-Err "bun install failed:`n$bunOut"
+    }
     Pop-Location
 }
 Write-Ok "@opencode-ai/plugin ready"
