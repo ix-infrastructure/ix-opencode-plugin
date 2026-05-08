@@ -234,6 +234,33 @@ When OpenCode adds a proper pre-task hook, the briefing logic can move there. Fo
 
 ---
 
+## Bun runtime requirement
+
+**Bun is required.** All tool files use `import { $ } from "bun"` for shell execution. The `$` tagged template literal is Bun's shell API and has no Node.js equivalent. The plugin cannot run on plain Node.js — Bun must be the runtime.
+
+Bun-specific APIs used:
+- `$\`command\`` — shell execution with structured result and `.text()` / `.quiet()` methods
+- Standard `fetch` (Bun ships fetch natively; used in `runtime/client.ts`)
+
+No Bun-specific APIs beyond these are required. `import { $ } from "bun"` is the only non-portable call.
+
+## MCP support
+
+**MCP is not currently supported by OpenCode.** The plugin uses OpenCode's native tool/hook model instead. The `opencode.json` manifest has no MCP section, and the OpenCode runtime does not currently expose an MCP registration surface.
+
+If OpenCode adds MCP support, the implementation path is:
+- Register an MCP server in `opencode.json`
+- Create `mcp/server.ts` with the same 17 tools, calling the runtime API
+- This would mirror the `ix-cursor-plugin/mcp/` structure
+
+Until then, all tools are registered as native OpenCode plugin tools via `plugins/ix-plugin.ts`.
+
+## Ix Core Runtime client
+
+`runtime/client.ts` provides `callRuntime()` and `isRuntimeAvailable()` for when the Ix Core Runtime API comes online (target: 2026-07-15 local alpha). The `ix-decide` tool uses this client today, falling back to `ix impact` when the runtime is unreachable. All other tools still call the CLI directly; they will migrate to the runtime client in Phase 2.
+
+The runtime base URL defaults to `http://127.0.0.1:7743` and can be overridden via the `IX_RUNTIME_URL` environment variable.
+
 ## Phase 2 roadmap
 
 When OpenCode adds the following capabilities, the plugin will upgrade:
@@ -243,5 +270,6 @@ When OpenCode adds the following capabilities, the plugin will upgrade:
 | Pre-task hook | Move briefing from `AGENTS.md` to per-task injected context |
 | Reliable subagent hook interception | Enforce `ix-pre-edit` and `ix-intercept` for all agents |
 | Structured tool return types | Return typed JSON from tools instead of markdown strings |
-| Localhost HTTP service | Replace CLI subprocess calls with direct Ix service HTTP calls |
+| MCP support | Register Ix as an MCP server with 17 tools (`mcp/server.ts`) |
+| Ix Core Runtime v2 | Migrate all tools from CLI subprocess calls to runtime HTTP API |
 | Post-task summary hook | Add `ix-map` and `ix-report` hooks |

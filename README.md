@@ -2,13 +2,13 @@
 
 An OpenCode plugin that brings [Ix Memory](https://github.com/ix-infrastructure/Ix)'s graph-first reasoning into OpenCode as a native cognitive layer.
 
-OpenCode + Ix = reasoning engine + persistent code knowledge graph. Skills are cognitive abstractions (not CLI wrappers) that start with cheap graph signals before reading source, and stop early when the question is answered.
+OpenCode + Ix = reasoning engine + persistent code knowledge graph. Skills are cognitive abstractions — not CLI wrappers — that start with cheap graph signals before reading source, and stop early when the question is answered.
 
 ## Requirements
 
 - [OpenCode](https://opencode.ai) installed
-- [Ix Memory](https://github.com/ix-infrastructure/Ix) CLI (`ix`) installed and connected to a workspace
-- [Bun](https://bun.sh) installed (OpenCode's plugin runtime)
+- [Ix Memory](https://github.com/ix-infrastructure/IX-Memory) CLI (`ix`) installed and connected to a workspace
+- [Bun](https://bun.sh) installed — **required** (all tools use Bun's `$` shell API; Node.js is not supported)
 
 ```bash
 opencode --version
@@ -18,20 +18,19 @@ bun --version
 
 ## Installation
 
-### Per-project (recommended)
-
 ```bash
 # From your project root
-mkdir -p .opencode/plugins .opencode/tools .opencode/commands .opencode/agents
+mkdir -p .opencode/plugins .opencode/tools .opencode/runtime .opencode/commands .opencode/agents
 
-cp -r /path/to/ix-opencode-plugin/plugins/. .opencode/plugins/
-cp -r /path/to/ix-opencode-plugin/tools/.   .opencode/tools/
+cp -r /path/to/ix-opencode-plugin/plugins/.  .opencode/plugins/
+cp -r /path/to/ix-opencode-plugin/tools/.    .opencode/tools/
+cp -r /path/to/ix-opencode-plugin/runtime/.  .opencode/runtime/
 cp -r /path/to/ix-opencode-plugin/commands/. .opencode/commands/
-cp -r /path/to/ix-opencode-plugin/agents/.  .opencode/agents/
+cp -r /path/to/ix-opencode-plugin/agents/.   .opencode/agents/
 cp    /path/to/ix-opencode-plugin/AGENTS.md  .opencode/AGENTS.md
 ```
 
-Add to your project's `opencode.json`:
+Add to `opencode.json`:
 
 ```json
 {
@@ -40,38 +39,24 @@ Add to your project's `opencode.json`:
 }
 ```
 
-### Global install
+> The `runtime/` directory is required — tools import the Ix Core Runtime client from `../runtime/client.ts`.
 
-```bash
-cp -r /path/to/ix-opencode-plugin/plugins/. ~/.config/opencode/plugins/
-cp -r /path/to/ix-opencode-plugin/tools/.   ~/.config/opencode/tools/
-cp -r /path/to/ix-opencode-plugin/commands/. ~/.config/opencode/commands/
-cp -r /path/to/ix-opencode-plugin/agents/.  ~/.config/opencode/agents/
-```
-
-Append `AGENTS.md` content to `~/.config/opencode/AGENTS.md`.
-
-### Build the graph first
-
-```bash
-cd /your/project
-ix map       # index the codebase (30s–2min)
-ix status    # verify graph is present
-```
+See [QUICKSTART.md](./QUICKSTART.md) for full setup instructions.
 
 ## Skills
 
-Slash commands with phased reasoning — graph first, source reads only when needed.
+Eight slash commands with phased reasoning — graph first, source reads only when needed.
 
-| Command | What it does | Key rule |
-|---------|-------------|----------|
-| `/ix-understand [target]` | Build a mental model of a system or the whole repo | Graph only — no source reads |
-| `/ix-investigate <symbol>` | Deep dive: what it is, how it connects, execution path | Graph first, one symbol read max |
-| `/ix-impact <target>` | Change risk: blast radius, affected systems, test targets | Depth scales with risk level |
-| `/ix-plan <targets...>` | Risk-ordered implementation plan for a set of changes | Parallel impact, finds shared dependents |
-| `/ix-debug <symptom>` | Root cause analysis from symptom to candidates | Targeted reads at suspects only |
-| `/ix-architecture [scope]` | Design health: coupling, smells, hotspots | Graph only — never reads source |
-| `/ix-docs <target> [--full]` | Generate narrative-first system documentation | Default is onboarding-focused |
+| Command | What it does |
+|---------|-------------|
+| `/ix-understand [target]` | Build a mental model of a system or the whole repo |
+| `/ix-investigate <symbol>` | Deep dive: role, connections, execution path |
+| `/ix-impact <target>` | Change risk: blast radius, affected systems, test targets |
+| `/ix-plan <targets...>` | Risk-ordered implementation plan |
+| `/ix-debug <symptom>` | Root cause analysis from symptom to candidates |
+| `/ix-architecture [scope]` | Design health: coupling, smells, hotspots |
+| `/ix-docs <target> [--full]` | Generate narrative-first system documentation |
+| `/ix-help [question]` | Route to the right skill or tool |
 
 ## Agents
 
@@ -83,44 +68,49 @@ Slash commands with phased reasoning — graph first, source reads only when nee
 | `ix-safe-refactor-planner` | Blast radius + safe change sequencing for refactors |
 | `ix-architecture-auditor` | Full structural health report with ranked improvements |
 
-Ask OpenCode to use them directly:
-
-```
-Use ix-explorer to answer: how does the authentication flow work?
-Use ix-bug-investigator to find why the session expires early.
-Use ix-safe-refactor-planner to plan changes to: UserRepository, AuthService
-```
-
 ## Tools
 
-Seven CLI-backed tools OpenCode can call during any task:
+17 TypeScript tools OpenCode can call during any task.
 
 | Tool | Purpose |
 |------|---------|
-| `ix-query` | Look up a graph entity by name |
-| `ix-neighbors` | Traverse the neighborhood of an entity |
-| `ix-impact` | Blast radius analysis for a target |
-| `ix-map` | Architectural map of a scope |
-| `ix-ingest` | Check graph status or trigger a re-index |
-| `ix-history` | Revision and history lookup |
-| `ix-docs-tool` | Retrieve doc/context summaries |
+| `ix-query` | Graph entity lookup by name (locate + explain) |
+| `ix-neighbors` | Callers, callees, imports, depends traversal |
+| `ix-impact` | Blast radius and risk verdict |
+| `ix-map` | Architectural overview with subsystem table |
+| `ix-ingest` | Graph status and refresh trigger |
+| `ix-history` | Revision, decisions, bugs (Ix Pro) |
+| `ix-docs-tool` | Condensed context summary for injection |
+| `ix-locate` | Text/pattern search across the codebase |
+| `ix-explain` | Full symbol explanation with role and importance |
+| `ix-rank` | Top symbols by dependents, callers, or members |
+| `ix-stats` | Graph-wide statistics and health |
+| `ix-subsystems` | Subsystem listing with hierarchy and signals |
+| `ix-inventory` | Enumerate files or symbols in a path scope |
+| `ix-trace` | Full execution path trace (upstream + downstream) |
+| `ix-decide` | Pre-edit policy verdict (ALLOW / REVIEW / BLOCK) |
+| `ix-health` | CLI and graph availability check |
+| `ix-smells` | Architecture smell detection |
 
-## Automatic hooks
+All tools try the [Ix Core Runtime](../IX_PLUGIN_OVERHAUL_SPEC.md) HTTP API first and fall back to the `ix` CLI when the runtime is unavailable.
+
+## Hooks
 
 | Trigger | Hook | Effect |
 |---------|------|--------|
-| Any task starts | `AGENTS.md` context injection | OpenCode knows to use graph data before reading files |
-| Before a file edit | `tool.execute.before` → `ix-pre-edit` | Runs impact check, surfaces blast radius |
-| Before a `read` | `tool.execute.before` → `ix-read` | Hints toward graph narrowing first |
-| Before grep/bash | `tool.execute.before` → `ix-intercept` | Front-runs with graph search |
-| First run in workspace | plugin init → `ix-ingest` | Ensures graph is present and fresh |
-| After tool execution | `tool.execute.after` → `ix-errors` | Handles stale graph or missing entities |
+| Any session | `AGENTS.md` injection | Always-on graph-first guidance |
+| Before file edit | `tool.execute.before` → `ix-decide` | Policy verdict; surfaces risk for REVIEW/BLOCK |
+| Before `read` | `tool.execute.before` → `ix-read` | Hints toward graph narrowing first |
+| Before grep/bash | `tool.execute.before` → `ix-intercept` | Suggests `ix text` for search |
+| After file edit | `tool.execute.after` → `ix-ingest` | Async graph refresh (fire-and-forget) |
+| After ix-* tools | `tool.execute.after` → `ix-errors` | Detects stale graph signals |
+| Plugin init | `onInit` | Triggers `ix map` if graph is empty |
 
-All hooks bail silently if `ix` is not in PATH or the backend is unreachable.
+All hooks return `{ action: "allow" }` — they inject context but never block actions.
 
 ## Further reading
 
 - [QUICKSTART.md](./QUICKSTART.md) — step-by-step first use guide
 - [ARCHITECTURE.md](./ARCHITECTURE.md) — design decisions and component overview
 - [TOOL_CONTRACT.md](./TOOL_CONTRACT.md) — tool API reference and output format
-- [AGENTS.md](./AGENTS.md) — always-on context injected into every OpenCode session
+- [ROADMAP.md](./ROADMAP.md) — implementation progress and upcoming work

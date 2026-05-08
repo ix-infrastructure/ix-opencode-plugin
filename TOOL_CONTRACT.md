@@ -334,6 +334,138 @@ Handles payment processing, subscription management, and invoice generation. Dep
 
 ---
 
+---
+
+### `ix-locate`
+
+**Purpose:** Text/pattern search across the indexed codebase. Use when you have a keyword or pattern rather than an exact symbol name.
+
+**Parameters:** `pattern` (required), `limit` (default 20, max 100), `path` (optional), `language` (optional)
+
+**CLI:** `ix text <pattern> --limit <n> [--path P] [--language L] --format json`
+
+**Runtime:** `POST /v2/ix_query` mode `"locate"` → `preview_markdown` shortcut
+
+---
+
+### `ix-explain`
+
+**Purpose:** Full symbol explanation — role, importance level, caller/callee counts, top dependents, and a plain-English description.
+
+**Parameters:** `symbol` (required)
+
+**CLI:** `ix explain <symbol> --format json`
+
+**Runtime:** `POST /v2/ix_query` mode `"investigate"` → `preview_markdown` shortcut
+
+---
+
+### `ix-rank`
+
+**Purpose:** Rank symbols by a graph metric to surface hotspots and high-centrality components.
+
+**Parameters:** `by` (default `dependents`; `callers`, `importers`, `members`), `kind` (default `class`), `top` (default 10, max 50), `path` (optional)
+
+**CLI:** `ix rank --by <by> --kind <kind> --top <n> [--path P] --format json`
+
+**Runtime:** `POST /v2/insights/derive` type `"centrality"` → `preview_markdown` shortcut
+
+---
+
+### `ix-stats`
+
+**Purpose:** Graph-wide node/edge counts, file count, and health status. Verify the graph is indexed before running expensive queries.
+
+**Parameters:** none
+
+**CLI:** `ix stats --format json`
+
+**Runtime:** `GET /v2/status` → `preview_markdown` shortcut
+
+---
+
+### `ix-subsystems`
+
+**Purpose:** Detailed subsystem listing with file counts, hierarchy levels, confidence signals, and interface counts.
+
+**Parameters:** none
+
+**CLI:** `ix subsystems --format json`
+
+**Runtime:** `POST /v2/graph/query` op `"subgraph"` → `preview_markdown` shortcut
+
+---
+
+### `ix-inventory`
+
+**Purpose:** Enumerate files or symbols within a directory path scope from the graph.
+
+**Parameters:** `path` (required), `kind` (default `file`; `class`, `function`, `interface`, `module`)
+
+**CLI:** `ix inventory --kind <kind> --path <path> --format json`
+
+**Runtime:** `POST /v2/graph/query` op `"neighbors"` → `preview_markdown` shortcut
+
+---
+
+### `ix-trace`
+
+**Purpose:** Trace full execution paths through a symbol — upstream callers and downstream callees. Use for complete call chains, not just immediate neighbors.
+
+**Parameters:** `symbol` (required), `to` (optional target for path tracing)
+
+**CLI:** `ix trace <symbol> [--to <target>] --format json`
+
+**Runtime:** `POST /v2/graph/query` op `"paths"` → `preview_markdown` shortcut
+
+---
+
+### `ix-decide`
+
+**Purpose:** Pre-edit policy verdict (ALLOW / REVIEW / BLOCK) with required actions and blast radius evidence.
+
+**Parameters:** `touched_paths` (required array), `intent` (default `edit`), `risk_tolerance` (default `medium`)
+
+**CLI fallback:** `ix impact <path>` per touched file — synthesizes a conservative verdict from impact scores when runtime unavailable.
+
+**Runtime:** `POST /v2/ix_decide` → formatted verdict string (no `preview_markdown` — full response parsed)
+
+---
+
+### `ix-health`
+
+**Purpose:** Check CLI availability, graph index state, and runtime reachability.
+
+**Parameters:** none
+
+**CLI:** `ix status --format json` (with `ix --version` fallback)
+
+**Runtime:** `GET /v2/status` — runtime reachability reported in output
+
+---
+
+### `ix-smells`
+
+**Purpose:** Detect architecture smells — orphan files, high coupling, low cohesion, dead code, and other structural issues.
+
+**Parameters:** `path` (optional), `limit` (default 50, max 200)
+
+**CLI:** `ix smells [--path P] --format json`
+
+**Runtime:** `POST /v2/insights/derive` type `"smells"` → `preview_markdown` shortcut
+
+---
+
+## Runtime API routing
+
+All tools now try the Ix Core Runtime API first via `runtime/client.ts`. When the runtime returns a response with `preview_markdown`, that string is used directly as the tool output. If the runtime is unavailable (expected until the 2026-07-15 alpha), tools fall back to the ix CLI.
+
+The runtime base URL defaults to `http://127.0.0.1:7743` and can be overridden via the `IX_RUNTIME_URL` environment variable.
+
+Secret redaction is applied to all outbound payloads (via `runtime/secrets.ts`) and to all `preview_markdown` fields in responses.
+
+---
+
 ## Adding a new tool
 
 To add a tool to the plugin:

@@ -79,6 +79,7 @@ Skip steps if earlier steps answer the question. Most questions should stop by s
 | `/ix-debug <symptom>` | Root cause analysis | Bug investigation, unexpected behavior |
 | `/ix-architecture [scope]` | Design health analysis | Code review, architecture discussions |
 | `/ix-docs <target> [--full] [--style narrative\|reference\|hybrid] [--split] [--single-doc] [--out <path>]` | Write narrative-first docs with a selective reference layer | Onboarding docs, handoffs, deep reference |
+| `/ix-help [<question>]` | Route to the right skill or tool — returns an exact invocation | When unsure which skill or tool to use |
 
 `ix-docs` writes a narrative-first Markdown document (or split doc set) to disk. Each run starts with an onboarding-friendly narrative layer and ends with a selective reference section for the most important modules, classes, and, in `--full`, key methods.
 
@@ -108,14 +109,28 @@ Skip steps if earlier steps answer the question. Most questions should stop by s
 ## Repo Structure
 
 ```
-tools/
-  ix-query.ts        — graph entity lookup
+tools/                           — 17 TypeScript tool functions
+  ix-query.ts        — graph entity lookup (locate + explain)
   ix-neighbors.ts    — neighborhood traversal (callers, callees, depends)
   ix-impact.ts       — blast radius analysis
   ix-map.ts          — architectural map and subsystem overview
   ix-ingest.ts       — graph ingest status and trigger
   ix-history.ts      — revision, decisions, bugs (Ix Pro)
   ix-docs-tool.ts    — condensed context summary for injection
+  ix-locate.ts       — text/pattern search across the codebase
+  ix-explain.ts      — full symbol explanation (role, importance, callers)
+  ix-rank.ts         — rank symbols by graph metric (dependents, callers...)
+  ix-stats.ts        — graph-wide statistics and health
+  ix-subsystems.ts   — subsystem listing with hierarchy and signals
+  ix-inventory.ts    — enumerate files or symbols in a path scope
+  ix-trace.ts        — full execution path trace (upstream + downstream)
+  ix-decide.ts       — pre-edit policy verdict (ALLOW/REVIEW/BLOCK)
+  ix-health.ts       — CLI and graph availability check
+  ix-smells.ts       — architecture smell detection
+
+runtime/
+  client.ts          — Ix Core Runtime HTTP client (v2 API; CLI fallback)
+  secrets.ts         — secret detection and redaction for API payloads
 
 commands/
   ix-understand.md   — mental model slash command (graph only)
@@ -125,6 +140,7 @@ commands/
   ix-debug.md        — root cause analysis (graph + targeted read)
   ix-architecture.md — design health (graph only)
   ix-docs.md         — narrative docs from graph
+  ix-help.md         — skill router (returns exact invocation)
 
 agents/
   ix-explorer.json              — general exploration

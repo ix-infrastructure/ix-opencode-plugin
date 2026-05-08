@@ -6,6 +6,7 @@
  */
 
 import { $ } from "bun";
+import { callRuntime } from "../runtime/client.ts";
 
 export const name = "ix-ingest";
 export const description =
@@ -57,8 +58,22 @@ export async function execute(
 
   if (!ixAvailable) return unavailable();
 
-  // If refresh requested, trigger ix map
+  // If refresh requested: try runtime ingest/map, fall back to CLI
   if (params.refresh) {
+    const rr = await callRuntime("/v2/ingest/map", {
+      trigger: "manual",
+      priority: "normal",
+    }, { dir });
+    if (rr) {
+      const jobId = typeof rr.job_id === "string" ? rr.job_id : "accepted";
+      return [
+        "## ix-ingest: graph refresh",
+        "",
+        `**Status:** Graph update queued (runtime).`,
+        `**Job:** ${jobId}`,
+      ].join("\n");
+    }
+
     const silent = params.silent !== false;
     try {
       if (silent) {

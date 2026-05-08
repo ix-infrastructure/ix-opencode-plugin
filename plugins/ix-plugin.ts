@@ -1,29 +1,13 @@
 /**
- * ix-plugin.ts — OpenCode plugin entry point
+ * ix-plugin.ts — OpenCode plugin entry point (v1.4.2 format)
  *
- * Registers all Ix tools and hooks with the OpenCode runtime.
- *
- * Tools registered:
- *   ix-query       — graph entity lookup
- *   ix-neighbors   — neighborhood traversal (callers, callees, depends)
- *   ix-impact      — blast radius analysis
- *   ix-map         — architectural map and subsystem overview
- *   ix-ingest      — graph ingest status and trigger
- *   ix-history     — revision, decisions, bugs (Ix Pro)
- *   ix-docs-tool   — condensed context summary for injection
- *
- * Hooks registered:
- *   tool.execute.before (write/edit)  — ix-pre-edit: impact check before file edits
- *   tool.execute.before (read)        — ix-read: inject graph context hint before reads
- *   tool.execute.before (bash)        — ix-intercept: front-run grep/rg with ix text
- *   tool.execute.after  (write/edit)  — ix-ingest: async graph refresh after edits
- *   tool.execute.after  (any)         — ix-errors: handle stale graph errors gracefully
+ * Exports `server` — the Plugin function that registers all 17 Ix tools
+ * and post-edit ingest / stale-graph hooks.
  */
 
-import type { Plugin, ToolContext, HookEvent } from "@opencode-ai/sdk";
+import { tool } from "@opencode-ai/plugin";
+import type { Plugin } from "@opencode-ai/plugin";
 import { $ } from "bun";
-
-// ─── Tool imports ────────────────────────────────────────────────────────────
 
 import * as ixQuery from "../tools/ix-query";
 import * as ixNeighbors from "../tools/ix-neighbors";
@@ -32,316 +16,251 @@ import * as ixMap from "../tools/ix-map";
 import * as ixIngest from "../tools/ix-ingest";
 import * as ixHistory from "../tools/ix-history";
 import * as ixDocsTool from "../tools/ix-docs-tool";
+import * as ixLocate from "../tools/ix-locate";
+import * as ixExplain from "../tools/ix-explain";
+import * as ixRank from "../tools/ix-rank";
+import * as ixStats from "../tools/ix-stats";
+import * as ixSubsystems from "../tools/ix-subsystems";
+import * as ixInventory from "../tools/ix-inventory";
+import * as ixTrace from "../tools/ix-trace";
+import * as ixDecide from "../tools/ix-decide";
+import * as ixHealth from "../tools/ix-health";
+import * as ixSmells from "../tools/ix-smells";
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+const IX_GRAPH_TOOLS = [
+  "ix-query", "ix-neighbors", "ix-impact", "ix-map", "ix-docs-tool",
+  "ix-locate", "ix-explain", "ix-rank", "ix-trace", "ix-smells",
+];
 
-async function isIxAvailable(dir: string): Promise<boolean> {
-  try {
-    await $`command -v ix`.cwd(dir).quiet();
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-/**
- * Check if a file path looks like source code (not generated, not lock files).
- */
 function isSourceFile(path: string): boolean {
-  const skip = [
-    "node_modules",
-    ".git",
-    "dist",
-    "build",
-    ".opencode/ix-cache",
-    "package-lock.json",
-    "yarn.lock",
-    "bun.lock",
-  ];
+  const skip = ["node_modules", ".git", "dist", "build", ".opencode/ix-cache", "package-lock.json", "yarn.lock", "bun.lock"];
   return !skip.some((s) => path.includes(s));
 }
 
-/**
- * Detect grep/rg patterns in a bash command string.
- */
-function isGrepCommand(cmd: string): boolean {
-  return /\b(grep|rg)\b/.test(cmd);
-}
-
-/**
- * Extract the search pattern from a grep/rg command string (best effort).
- */
-function extractGrepPattern(cmd: string): string | null {
-  // Match: grep "pattern" or rg 'pattern' or grep pattern
-  const m = cmd.match(/\b(?:grep|rg)\b\s+(?:-[^\s]+\s+)*['"]?([^'"]+?)['"]?\s/);
-  return m ? m[1].trim() : null;
-}
-
-// ─── Plugin definition ───────────────────────────────────────────────────────
-
-const plugin: Plugin = {
-  name: "ix-memory",
-  version: "1.0.0",
-  description:
-    "Graph-first reasoning layer for OpenCode. Provides Ix Memory tools for architectural navigation, impact analysis, and safe change planning.",
-
-  // ─── Tools ───────────────────────────────────────────────────────────────
-
-  tools: [
-    {
-      name: ixQuery.name,
-      description: ixQuery.description,
-      parameters: ixQuery.parameters,
-      execute: async (params: Record<string, unknown>, ctx: ToolContext) =>
-        ixQuery.execute(params as Parameters<typeof ixQuery.execute>[0], ctx),
-    },
-    {
-      name: ixNeighbors.name,
-      description: ixNeighbors.description,
-      parameters: ixNeighbors.parameters,
-      execute: async (params: Record<string, unknown>, ctx: ToolContext) =>
-        ixNeighbors.execute(params as Parameters<typeof ixNeighbors.execute>[0], ctx),
-    },
-    {
-      name: ixImpact.name,
-      description: ixImpact.description,
-      parameters: ixImpact.parameters,
-      execute: async (params: Record<string, unknown>, ctx: ToolContext) =>
-        ixImpact.execute(params as Parameters<typeof ixImpact.execute>[0], ctx),
-    },
-    {
-      name: ixMap.name,
-      description: ixMap.description,
-      parameters: ixMap.parameters,
-      execute: async (params: Record<string, unknown>, ctx: ToolContext) =>
-        ixMap.execute(params as Parameters<typeof ixMap.execute>[0], ctx),
-    },
-    {
-      name: ixIngest.name,
-      description: ixIngest.description,
-      parameters: ixIngest.parameters,
-      execute: async (params: Record<string, unknown>, ctx: ToolContext) =>
-        ixIngest.execute(params as Parameters<typeof ixIngest.execute>[0], ctx),
-    },
-    {
-      name: ixHistory.name,
-      description: ixHistory.description,
-      parameters: ixHistory.parameters,
-      execute: async (params: Record<string, unknown>, ctx: ToolContext) =>
-        ixHistory.execute(params as Parameters<typeof ixHistory.execute>[0], ctx),
-    },
-    {
-      name: ixDocsTool.name,
-      description: ixDocsTool.description,
-      parameters: ixDocsTool.parameters,
-      execute: async (params: Record<string, unknown>, ctx: ToolContext) =>
-        ixDocsTool.execute(params as Parameters<typeof ixDocsTool.execute>[0], ctx),
-    },
-  ],
-
-  // ─── Hooks ───────────────────────────────────────────────────────────────
-
-  hooks: [
-    /**
-     * ix-pre-edit: Before write/edit — run impact check on the target file.
-     * Injects a risk summary so the agent can reconsider high-impact changes.
-     * Allows the edit to proceed regardless (advisory, not blocking).
-     */
-    {
-      event: "tool.execute.before",
-      match: { tool: ["write", "edit"] },
-      handler: async (event: HookEvent) => {
-        const dir = event.context?.directory;
-        if (!dir) return { action: "allow" };
-
-        const filePath =
-          (event.params?.file_path as string) ??
-          (event.params?.path as string);
-        if (!filePath || !isSourceFile(filePath)) return { action: "allow" };
-
-        if (!(await isIxAvailable(dir))) return { action: "allow" };
-
-        try {
-          const impactOut = await $`ix impact ${filePath} --format json`
-            .cwd(dir)
-            .quiet()
-            .text();
-          const impact = JSON.parse(impactOut);
-          const risk = (impact.risk ?? "unknown").toLowerCase();
-
-          // Only inject context for medium/high/critical — don't slow down low-risk edits
-          if (risk === "low" || risk === "unknown") return { action: "allow" };
-
-          const dependents = impact.dependentCount ?? 0;
-          const note = [
-            `[ix-pre-edit] **${risk.toUpperCase()} risk edit detected.**`,
-            `File: \`${filePath}\` — ${dependents} direct dependent(s).`,
-            risk === "critical" || risk === "high"
-              ? "Consider running `/ix-plan` before proceeding."
-              : "Review callers after this change.",
-          ].join(" ");
-
-          return {
-            action: "allow",
-            context: note,
-          };
-        } catch {
-          // Impact check failed — allow edit without annotation
-          return { action: "allow" };
-        }
-      },
-    },
-
-    /**
-     * ix-read: Before read tool — inject a graph context hint.
-     * Encourages using ix-query or ix-map before broad file reads.
-     * Only fires for source files, not config/data files.
-     */
-    {
-      event: "tool.execute.before",
-      match: { tool: ["read"] },
-      handler: async (event: HookEvent) => {
-        const dir = event.context?.directory;
-        if (!dir) return { action: "allow" };
-
-        const filePath =
-          (event.params?.file_path as string) ??
-          (event.params?.path as string);
-        if (!filePath || !isSourceFile(filePath)) return { action: "allow" };
-
-        if (!(await isIxAvailable(dir))) return { action: "allow" };
-
-        // Only hint if no offset/limit requested (broad reads, not targeted)
-        const offset = event.params?.offset;
-        const limit = event.params?.limit;
-        if (offset !== undefined || limit !== undefined) return { action: "allow" };
-
-        const hint = [
-          `[ix-read] Before reading \`${filePath}\` in full:`,
-          "Consider using **ix-query** or **ix-map** to get graph context first.",
-          `Try: ix overview ${filePath} --format json`,
-        ].join(" ");
-
-        return {
-          action: "allow",
-          context: hint,
-        };
-      },
-    },
-
-    /**
-     * ix-intercept: Before bash — front-run grep/rg commands with ix text.
-     * If the bash command looks like a search, inject an ix text suggestion.
-     */
-    {
-      event: "tool.execute.before",
-      match: { tool: ["bash"] },
-      handler: async (event: HookEvent) => {
-        const dir = event.context?.directory;
-        if (!dir) return { action: "allow" };
-
-        const cmd = (event.params?.command as string) ?? "";
-        if (!isGrepCommand(cmd)) return { action: "allow" };
-
-        if (!(await isIxAvailable(dir))) return { action: "allow" };
-
-        const pattern = extractGrepPattern(cmd);
-        if (!pattern) return { action: "allow" };
-
-        const hint = [
-          `[ix-intercept] Graph search available: \`ix text "${pattern}" --limit 20 --format json\``,
-          "This is faster and graph-aware. Use bash grep only if ix text returns no results.",
-        ].join(" ");
-
-        return {
-          action: "allow",
-          context: hint,
-        };
-      },
-    },
-
-    /**
-     * ix-ingest: After write/edit — async graph refresh.
-     * Runs `ix map --silent` in the background after file changes.
-     * Non-blocking: fires and forgets.
-     */
-    {
-      event: "tool.execute.after",
-      match: { tool: ["write", "edit"] },
-      handler: async (event: HookEvent) => {
-        const dir = event.context?.directory;
-        if (!dir) return;
-
-        const filePath =
-          (event.params?.file_path as string) ??
-          (event.params?.path as string);
-        if (!filePath || !isSourceFile(filePath)) return;
-
-        if (!(await isIxAvailable(dir))) return;
-
-        // Fire and forget — don't await, don't block the agent
-        $`ix map --silent`.cwd(dir).quiet().catch(() => {
-          // Silently ignore map failures
-        });
-      },
-    },
-
-    /**
-     * ix-errors: After any tool — handle stale graph errors gracefully.
-     * If an ix tool returns a staleness warning, suggest `ix map`.
-     */
-    {
-      event: "tool.execute.after",
-      match: { tool: ["ix-query", "ix-neighbors", "ix-impact", "ix-map", "ix-docs-tool"] },
-      handler: async (event: HookEvent) => {
-        const result = event.result as string | undefined;
-        if (!result) return;
-
-        const isStale =
-          result.includes("stale") ||
-          result.includes("confidence < 0.7") ||
-          result.includes("run ix map");
-
-        if (isStale) {
-          return {
-            context:
-              "[ix-errors] Graph data may be stale. Run `ix map` to refresh, then retry.",
-          };
-        }
-      },
-    },
-  ],
-
-  /**
-   * Plugin initialization — check ix availability and ensure graph is present.
-   * Called once when the plugin loads.
-   */
-  async onInit(ctx: { directory: string }) {
-    const dir = ctx.directory;
-
-    const available = await isIxAvailable(dir);
-    if (!available) {
-      // ix not installed — plugin loads but tools will return helpful messages
-      return;
+export const server: Plugin = async ({ directory }) => {
+  // Trigger initial graph build if empty
+  try {
+    const out = await $`ix subsystems --list --format json`.cwd(directory).quiet().text();
+    const parsed = JSON.parse(out);
+    const names: string[] = parsed.names ?? parsed.list ?? [];
+    if (names.length === 0) {
+      $`ix map --silent`.cwd(directory).quiet().catch(() => {});
     }
+  } catch {
+    // ix unavailable — tools will return helpful fallback messages
+  }
 
-    // Check if graph needs initialization (async, non-blocking)
-    try {
-      const subsystems = await $`ix subsystems --list --format json`
-        .cwd(dir)
-        .quiet()
-        .text();
-      const parsed = JSON.parse(subsystems);
-      const names: string[] = parsed.names ?? parsed.list ?? [];
+  return {
+    // ─── Tools ───────────────────────────────────────────────────────────────
 
-      if (names.length === 0) {
-        // Graph empty — trigger initial ingest in background
-        $`ix map --silent`.cwd(dir).quiet().catch(() => {});
+    tool: {
+      "ix-query": tool({
+        description: ixQuery.description,
+        args: {
+          symbol: tool.schema.string().describe("Symbol name, file path, or subsystem name to look up"),
+          kind: tool.schema.enum(["function", "class", "file", "module"] as const).optional().describe("Optional: narrow to a specific kind"),
+          path: tool.schema.string().optional().describe("Optional: narrow results to a specific directory path"),
+        },
+        async execute(args, ctx) {
+          return ixQuery.execute(args, { directory: ctx.directory, worktree: ctx.worktree });
+        },
+      }),
+
+      "ix-neighbors": tool({
+        description: ixNeighbors.description,
+        args: {
+          symbol: tool.schema.string().describe("Symbol, class, or file to get neighbors for"),
+          direction: tool.schema.enum(["callers", "callees", "depends", "imported-by", "all"] as const).optional().describe("Which neighbors to fetch. Default: all"),
+          limit: tool.schema.number().optional().describe("Max results per direction. Default: 15"),
+          depth: tool.schema.number().optional().describe("Traversal depth for depends. Default: 2"),
+        },
+        async execute(args, ctx) {
+          return ixNeighbors.execute(args, { directory: ctx.directory, worktree: ctx.worktree });
+        },
+      }),
+
+      "ix-impact": tool({
+        description: ixImpact.description,
+        args: {
+          target: tool.schema.string().describe("Symbol name or file path to assess"),
+        },
+        async execute(args, ctx) {
+          return ixImpact.execute(args, { directory: ctx.directory, worktree: ctx.worktree });
+        },
+      }),
+
+      "ix-map": tool({
+        description: ixMap.description,
+        args: {
+          scope: tool.schema.string().optional().describe("Optional: scope to a specific subsystem or path prefix"),
+          include_stats: tool.schema.boolean().optional().describe("Include codebase stats. Default: true"),
+        },
+        async execute(args, ctx) {
+          return ixMap.execute(args, { directory: ctx.directory, worktree: ctx.worktree });
+        },
+      }),
+
+      "ix-ingest": tool({
+        description: ixIngest.description,
+        args: {
+          refresh: tool.schema.boolean().optional().describe("If true, trigger a graph refresh. Default: false"),
+          silent: tool.schema.boolean().optional().describe("Run ix map --silent. Default: true"),
+        },
+        async execute(args, ctx) {
+          return ixIngest.execute(args, { directory: ctx.directory, worktree: ctx.worktree });
+        },
+      }),
+
+      "ix-history": tool({
+        description: ixHistory.description,
+        args: {
+          topic: tool.schema.string().optional().describe("Symbol or topic to filter history to. Omit for workspace-wide."),
+          include: tool.schema.array(
+            tool.schema.enum(["decisions", "bugs", "changes", "briefing"] as const)
+          ).optional().describe("What to fetch. Default: ['briefing']"),
+        },
+        async execute(args, ctx) {
+          return ixHistory.execute(
+            args as Parameters<typeof ixHistory.execute>[0],
+            { directory: ctx.directory, worktree: ctx.worktree }
+          );
+        },
+      }),
+
+      "ix-docs-tool": tool({
+        description: ixDocsTool.description,
+        args: {
+          target: tool.schema.string().describe("Symbol name, file path, or subsystem name to summarize"),
+          depth: tool.schema.enum(["brief", "standard", "full"] as const).optional().describe("How much detail. Default: standard"),
+        },
+        async execute(args, ctx) {
+          return ixDocsTool.execute(args, { directory: ctx.directory, worktree: ctx.worktree });
+        },
+      }),
+
+      "ix-locate": tool({
+        description: ixLocate.description,
+        args: {
+          pattern: tool.schema.string().describe("Text pattern or keyword to search for"),
+          limit: tool.schema.number().optional().describe("Max results. Default: 20, max: 100"),
+          path: tool.schema.string().optional().describe("Restrict search to a directory path prefix"),
+          language: tool.schema.string().optional().describe("Restrict to a specific language (e.g. typescript)"),
+        },
+        async execute(args, ctx) {
+          return ixLocate.execute(args, { directory: ctx.directory, worktree: ctx.worktree });
+        },
+      }),
+
+      "ix-explain": tool({
+        description: ixExplain.description,
+        args: {
+          symbol: tool.schema.string().describe("Symbol name to explain (class, function, file, or module)"),
+        },
+        async execute(args, ctx) {
+          return ixExplain.execute(args, { directory: ctx.directory, worktree: ctx.worktree });
+        },
+      }),
+
+      "ix-rank": tool({
+        description: ixRank.description,
+        args: {
+          by: tool.schema.enum(["dependents", "callers", "importers", "members"] as const).optional().describe("Metric to rank by. Default: dependents"),
+          kind: tool.schema.enum(["class", "function", "file", "interface", "module"] as const).optional().describe("Symbol kind to rank. Default: class"),
+          top: tool.schema.number().optional().describe("How many results. Default: 10, max: 50"),
+          path: tool.schema.string().optional().describe("Restrict ranking to a directory path prefix"),
+        },
+        async execute(args, ctx) {
+          return ixRank.execute(args, { directory: ctx.directory, worktree: ctx.worktree });
+        },
+      }),
+
+      "ix-stats": tool({
+        description: ixStats.description,
+        args: {},
+        async execute(_args, ctx) {
+          return ixStats.execute({} as never, { directory: ctx.directory, worktree: ctx.worktree });
+        },
+      }),
+
+      "ix-subsystems": tool({
+        description: ixSubsystems.description,
+        args: {},
+        async execute(_args, ctx) {
+          return ixSubsystems.execute({} as never, { directory: ctx.directory, worktree: ctx.worktree });
+        },
+      }),
+
+      "ix-inventory": tool({
+        description: ixInventory.description,
+        args: {
+          path: tool.schema.string().describe("Directory path prefix to enumerate (e.g. src/auth)"),
+          kind: tool.schema.enum(["file", "class", "function", "interface", "module"] as const).optional().describe("What to enumerate. Default: file"),
+        },
+        async execute(args, ctx) {
+          return ixInventory.execute(args, { directory: ctx.directory, worktree: ctx.worktree });
+        },
+      }),
+
+      "ix-trace": tool({
+        description: ixTrace.description,
+        args: {
+          symbol: tool.schema.string().describe("Symbol to trace execution paths for"),
+          to: tool.schema.string().optional().describe("Trace only paths from symbol to this target"),
+        },
+        async execute(args, ctx) {
+          return ixTrace.execute(args, { directory: ctx.directory, worktree: ctx.worktree });
+        },
+      }),
+
+      "ix-decide": tool({
+        description: ixDecide.description,
+        args: {
+          touched_paths: tool.schema.array(tool.schema.string()).describe("File paths that will be edited"),
+          intent: tool.schema.enum(["edit", "refactor", "delete", "add"] as const).optional().describe("Kind of change. Default: edit"),
+          risk_tolerance: tool.schema.enum(["low", "medium", "high"] as const).optional().describe("Risk tolerance for verdict. Default: medium"),
+        },
+        async execute(args, ctx) {
+          return ixDecide.execute(args, { directory: ctx.directory, worktree: ctx.worktree });
+        },
+      }),
+
+      "ix-health": tool({
+        description: ixHealth.description,
+        args: {},
+        async execute(_args, ctx) {
+          return ixHealth.execute({} as never, { directory: ctx.directory, worktree: ctx.worktree });
+        },
+      }),
+
+      "ix-smells": tool({
+        description: ixSmells.description,
+        args: {
+          path: tool.schema.string().optional().describe("Restrict smell detection to a directory path prefix"),
+          limit: tool.schema.number().optional().describe("Max results. Default: 50, max: 200"),
+        },
+        async execute(args, ctx) {
+          return ixSmells.execute(args, { directory: ctx.directory, worktree: ctx.worktree });
+        },
+      }),
+    },
+
+    // ─── Hooks ───────────────────────────────────────────────────────────────
+
+    "tool.execute.after": async (input, output) => {
+      // Post-edit ingest: async graph refresh after file writes
+      if ((input.tool === "write" || input.tool === "edit") && typeof input.args?.file_path === "string") {
+        if (isSourceFile(input.args.file_path)) {
+          $`ix map --silent`.cwd(directory).quiet().catch(() => {});
+        }
       }
-    } catch {
-      // Can't check — proceed silently
-    }
-  },
-};
 
-export default plugin;
+      // Stale graph detection: append warning when ix tools return stale signals
+      if (IX_GRAPH_TOOLS.includes(input.tool)) {
+        const result = output.output ?? "";
+        if (result.includes("stale") || result.includes("confidence < 0.7") || result.includes("run ix map")) {
+          output.output = result + "\n\n> [ix] Graph data may be stale — run `ix map` to refresh.";
+        }
+      }
+    },
+  };
+};
