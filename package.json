@@ -3,7 +3,6 @@
   "version": "1.0.0",
   "description": "OpenCode plugin for Ix Memory — graph-first reasoning layer",
   "scripts": {
-    "install": "bun install",
     "test": "bun test",
     "test:live": "IX_LIVE_TESTS=1 bun test"
   },
