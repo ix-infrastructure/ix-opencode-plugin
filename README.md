@@ -10,38 +10,87 @@ OpenCode + Ix = reasoning engine + persistent code knowledge graph. Skills are c
 - [Ix Memory](https://github.com/ix-infrastructure/IX-Memory) CLI (`ix`) installed and connected to a workspace
 - [Bun](https://bun.sh) installed — **required** (all tools use Bun's `$` shell API; Node.js is not supported)
 
-```bash
-opencode --version
-command -v ix && ix status
-bun --version
-```
-
 ## Installation
 
+### macOS / Linux
+
 ```bash
-# From your project root
-mkdir -p .opencode/plugins .opencode/tools .opencode/runtime .opencode/commands .opencode/agents
-
-cp -r /path/to/ix-opencode-plugin/plugins/.  .opencode/plugins/
-cp -r /path/to/ix-opencode-plugin/tools/.    .opencode/tools/
-cp -r /path/to/ix-opencode-plugin/runtime/.  .opencode/runtime/
-cp -r /path/to/ix-opencode-plugin/commands/. .opencode/commands/
-cp -r /path/to/ix-opencode-plugin/agents/.   .opencode/agents/
-cp    /path/to/ix-opencode-plugin/AGENTS.md  .opencode/AGENTS.md
+curl -fsSL https://raw.githubusercontent.com/ix-infrastructure/ix-opencode-plugin/main/install.sh | bash
 ```
 
-Add to `opencode.json`:
+Installs globally into `~/.config/opencode/` — active in every OpenCode session automatically.
 
-```json
-{
-  "plugin": [".opencode/plugins/ix-plugin.ts"],
-  "instructions": [".opencode/AGENTS.md"]
-}
+**Flags:**
+
+```bash
+# Per-project install (copies into .opencode/ in current directory)
+curl -fsSL ... | bash -s -- --project
+
+# Per-project install in a specific directory
+curl -fsSL ... | bash -s -- --project /path/to/myproject
+
+# Force re-install (overwrites existing symlinks and config)
+curl -fsSL ... | bash -s -- --force
+
+# Preview what would happen without making changes
+curl -fsSL ... | bash -s -- --dry-run
+
+# Uninstall
+curl -fsSL ... | bash -s -- --uninstall
+
+# Use an existing local clone instead of downloading
+./install.sh --source /path/to/ix-opencode-plugin
 ```
 
-> The `runtime/` directory is required — tools import the Ix Core Runtime client from `../runtime/client.ts`.
+### Windows (PowerShell)
 
-See [QUICKSTART.md](./QUICKSTART.md) for full setup instructions.
+```powershell
+irm https://raw.githubusercontent.com/ix-infrastructure/ix-opencode-plugin/main/install.ps1 | iex
+```
+
+Installs globally into `%APPDATA%\opencode\` — active in every OpenCode session automatically.
+
+**Flags:**
+
+```powershell
+# Per-project install in current directory
+.\install.ps1 -Project
+
+# Per-project install in a specific directory
+.\install.ps1 -Project C:\path\to\myproject
+
+# Force re-install
+.\install.ps1 -Force
+
+# Preview without making changes
+.\install.ps1 -DryRun
+
+# Uninstall
+.\install.ps1 -Uninstall
+
+# Use an existing local clone
+.\install.ps1 -Source C:\path\to\ix-opencode-plugin
+```
+
+> **Note:** If you see a script execution policy error, run `Set-ExecutionPolicy RemoteSigned -Scope CurrentUser` first.
+
+### Windows (WSL)
+
+Use the macOS/Linux install command above inside your WSL terminal.
+
+### Verify
+
+Open OpenCode and run:
+
+```
+Use the ix-health tool
+```
+
+Expected output: `Status: OK · CLI: ix x.x.x installed · Graph: indexed`
+
+If the graph isn't built yet, run `ix map` first.
+
+See [QUICKSTART.md](./QUICKSTART.md) for full setup details.
 
 ## Skills
 
