@@ -235,19 +235,25 @@ fmt_step "Plugin source"
 
 if [[ -f "$SOURCE_DIR/plugins/ix-plugin.ts" ]]; then
   fmt_ok "Found at $SOURCE_DIR"
+  # Update shallow clone (curl re-installs stay current)
+  if [[ -d "$SOURCE_DIR/.git" ]] && command -v git &>/dev/null; then
+    run git -C "$SOURCE_DIR" fetch --depth 1 origin --quiet < /dev/null || true
+    run git -C "$SOURCE_DIR" reset --hard origin/HEAD --quiet < /dev/null || true
+    fmt_ok "Updated to latest"
+  fi
 else
   fmt_info "Not found at $SOURCE_DIR — cloning from GitHub..."
   if ! command -v git &>/dev/null; then
     fmt_err "git not found. Clone manually: git clone $REPO_URL $SOURCE_DIR"
   fi
-  run git clone --depth 1 "$REPO_URL" "$SOURCE_DIR"
+  run git clone --depth 1 "$REPO_URL" "$SOURCE_DIR" < /dev/null
   fmt_ok "Cloned to $SOURCE_DIR"
 fi
 
 # ── Install dependencies ──────────────────────────────────────────────────────
 
 fmt_step "Installing dependencies"
-run bash -c "cd '$SOURCE_DIR' && bun install --silent"
+run bash -c "cd '$SOURCE_DIR' && bun install --silent" < /dev/null
 fmt_ok "@opencode-ai/plugin ready"
 
 # ── Uninstall ─────────────────────────────────────────────────────────────────
