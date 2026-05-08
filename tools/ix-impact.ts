@@ -6,6 +6,7 @@
  */
 
 import { $ } from "bun";
+import { callRuntime } from "../runtime/client.ts";
 
 export const name = "ix-impact";
 export const description =
@@ -36,6 +37,12 @@ export async function execute(
   context: Context
 ): Promise<string> {
   const dir = context.worktree ?? context.directory;
+
+  // Try runtime API first — use preview_markdown when available
+  const rr = await callRuntime("/v2/ix_query", {
+    query: { mode: "impact", targets: [{ kind: "path", value: params.target }] },
+  }, { dir });
+  if (typeof rr?.preview_markdown === "string") return rr.preview_markdown;
 
   let impactOutput: string;
   try {

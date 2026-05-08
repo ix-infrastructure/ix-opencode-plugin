@@ -6,6 +6,7 @@
  */
 
 import { $ } from "bun";
+import { callRuntime } from "../runtime/client.ts";
 
 export const name = "ix-neighbors";
 export const description =
@@ -60,6 +61,21 @@ export async function execute(
   const direction = params.direction ?? "all";
   const limit = Math.min(params.limit ?? 15, 30);
   const depth = Math.min(params.depth ?? 2, 3);
+
+  // Try runtime API first — use preview_markdown when available
+  const edgeTypes = direction === "all"
+    ? ["calls", "imports", "depends_on"]
+    : direction === "callers" ? ["calls"]
+    : direction === "callees" ? ["calls"]
+    : direction === "depends" ? ["depends_on"]
+    : ["imports"];
+  const rr = await callRuntime("/v2/graph/query", {
+    operation: "neighbors",
+    selectors: [{ kind: "symbol", value: params.symbol }],
+    edge_types: edgeTypes,
+    depth,
+  }, { dir });
+  if (typeof rr?.preview_markdown === "string") return rr.preview_markdown;
 
   const sections: string[] = [`## ix-neighbors: ${params.symbol}`, ""];
 

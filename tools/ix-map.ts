@@ -6,6 +6,7 @@
  */
 
 import { $ } from "bun";
+import { callRuntime } from "../runtime/client.ts";
 
 export const name = "ix-map";
 export const description =
@@ -44,6 +45,16 @@ export async function execute(
 ): Promise<string> {
   const dir = context.worktree ?? context.directory;
   const includeStats = params.include_stats !== false;
+
+  // Try runtime API first — use preview_markdown when available
+  const rr = await callRuntime("/v2/ix_query", {
+    query: {
+      mode: "understand",
+      depth: "shallow",
+      targets: params.scope ? [{ kind: "path", value: params.scope }] : [],
+    },
+  }, { dir });
+  if (typeof rr?.preview_markdown === "string") return rr.preview_markdown;
 
   const fetches: Promise<string>[] = [
     fetchSubsystems(dir, params.scope),
