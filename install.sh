@@ -240,14 +240,14 @@ else
   if ! command -v git &>/dev/null; then
     fmt_err "git not found. Clone manually: git clone $REPO_URL $SOURCE_DIR"
   fi
-  run git clone --depth 1 "$REPO_URL" "$SOURCE_DIR"
+  run git clone --depth 1 "$REPO_URL" "$SOURCE_DIR" < /dev/null
   fmt_ok "Cloned to $SOURCE_DIR"
 fi
 
 # ── Install dependencies ──────────────────────────────────────────────────────
 
 fmt_step "Installing dependencies"
-run bash -c "cd '$SOURCE_DIR' && bun install --silent"
+run bash -c "cd '$SOURCE_DIR' && bun install --silent" < /dev/null
 fmt_ok "@opencode-ai/plugin ready"
 
 # ── Uninstall ─────────────────────────────────────────────────────────────────
