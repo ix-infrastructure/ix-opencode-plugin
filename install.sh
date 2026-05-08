@@ -247,7 +247,7 @@ fi
 # ── Install dependencies ──────────────────────────────────────────────────────
 
 fmt_step "Installing dependencies"
-run bun install --cwd "$SOURCE_DIR" --silent
+run bash -c "cd '$SOURCE_DIR' && bun install --silent"
 fmt_ok "@opencode-ai/plugin ready"
 
 # ── Uninstall ─────────────────────────────────────────────────────────────────
