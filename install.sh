@@ -235,9 +235,10 @@ fmt_step "Plugin source"
 
 if [[ -f "$SOURCE_DIR/plugins/ix-plugin.ts" ]]; then
   fmt_ok "Found at $SOURCE_DIR"
-  # Pull latest if it's a git repo (keeps curl installs up to date)
+  # Update shallow clone (curl re-installs stay current)
   if [[ -d "$SOURCE_DIR/.git" ]] && command -v git &>/dev/null; then
-    run git -C "$SOURCE_DIR" pull --ff-only --quiet < /dev/null || true
+    run git -C "$SOURCE_DIR" fetch --depth 1 origin --quiet < /dev/null || true
+    run git -C "$SOURCE_DIR" reset --hard origin/HEAD --quiet < /dev/null || true
     fmt_ok "Updated to latest"
   fi
 else
