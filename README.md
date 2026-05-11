@@ -20,27 +20,36 @@ curl -fsSL https://raw.githubusercontent.com/ix-infrastructure/ix-opencode-plugi
 
 Installs globally into `~/.config/opencode/` — active in every OpenCode session automatically.
 
-**Flags:**
+**Install flags:**
 
 ```bash
-# Per-project install (copies into .opencode/ in current directory)
-curl -fsSL ... | bash -s -- --project
+# Force re-install — overwrites existing symlinks and config entries.
+# Use this if you've already installed and want to update to the latest version.
+curl -fsSL https://raw.githubusercontent.com/ix-infrastructure/ix-opencode-plugin/main/install.sh | bash -s -- --force
 
-# Per-project install in a specific directory
-curl -fsSL ... | bash -s -- --project /path/to/myproject
+# Per-project install — copies plugin files into .opencode/ in the current directory
+# instead of the global ~/.config/opencode/. Useful for team repos where you want
+# the plugin checked in or scoped to a single project.
+curl -fsSL https://raw.githubusercontent.com/ix-infrastructure/ix-opencode-plugin/main/install.sh | bash -s -- --project
 
-# Force re-install (overwrites existing symlinks and config)
-curl -fsSL ... | bash -s -- --force
+# Per-project install into a specific directory
+curl -fsSL https://raw.githubusercontent.com/ix-infrastructure/ix-opencode-plugin/main/install.sh | bash -s -- --project /path/to/myproject
 
-# Preview what would happen without making changes
-curl -fsSL ... | bash -s -- --dry-run
+# Dry run — prints exactly what the installer would do without making any changes.
+# Good for verifying the install path and config merges before committing.
+curl -fsSL https://raw.githubusercontent.com/ix-infrastructure/ix-opencode-plugin/main/install.sh | bash -s -- --dry-run
 
-# Uninstall
-curl -fsSL ... | bash -s -- --uninstall
+# Uninstall — removes symlinks (global) or .opencode/ directory (per-project).
+# Does not modify opencode.json automatically; remove the plugin/instructions
+# entries from that file manually afterward.
+curl -fsSL https://raw.githubusercontent.com/ix-infrastructure/ix-opencode-plugin/main/install.sh | bash -s -- --uninstall
 
-# Use an existing local clone instead of downloading
+# Use an existing local clone instead of downloading from GitHub.
+# Useful for development or offline environments.
 ./install.sh --source /path/to/ix-opencode-plugin
 ```
+
+Flags can be combined — for example, `--force --dry-run` previews what a force re-install would do without changing anything.
 
 ### Windows (PowerShell)
 
