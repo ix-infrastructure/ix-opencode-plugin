@@ -15,14 +15,14 @@ If either fails, stop: *"ix graph unavailable — run `ix connect` or check your
 
 Then verify the graph has data:
 ```bash
-ix subsystems --list --format json
+ix subsystems --list --format llm
 ```
 If the result is empty or returns an error, stop: *"No graph data yet — run `ix map` to build the graph first."*
 
 ## Pro check
 
 ```bash
-ix briefing --format json 2>&1
+ix briefing --format llm 2>&1
 ```
 If it returns JSON with a `revision` field, Pro is available. Note `recentDecisions` for use below. Skip all **[Pro]** steps if it errors.
 
@@ -30,8 +30,8 @@ If it returns JSON with a `revision` field, Pro is available. Note `recentDecisi
 
 Run in parallel:
 ```bash
-ix subsystems --format json
-ix subsystems --list --format json
+ix subsystems --format llm
+ix subsystems --list --format llm
 ```
 
 Build the region hierarchy. Flag immediately:
@@ -44,7 +44,7 @@ Sort regions: worst health first.
 ## Phase 2 — Smell detection
 
 ```bash
-ix smells --format json
+ix smells --format llm
 ```
 
 Classify each smell:
@@ -56,8 +56,8 @@ Classify each smell:
 
 Run only when Phase 1 or 2 reveals significant issues:
 ```bash
-ix rank --by dependents --kind class    --top 10 --exclude-path test --format json
-ix rank --by dependents --kind function --top 10 --exclude-path test --format json
+ix rank --by dependents --kind class    --top 10 --exclude-path test --format llm
+ix rank --by dependents --kind function --top 10 --exclude-path test --format llm
 ```
 
 Correlate: components that are both **highly central** and in **poorly-bounded subsystems** are the highest-risk change targets.
@@ -75,7 +75,7 @@ ix subsystems <region> --explain
 
 If Pro is available, after the analysis completes:
 ```bash
-ix decisions --format json
+ix decisions --format llm
 ```
 Append a **Recorded Decisions** section cross-referencing relevant design decisions against the findings — especially decisions that affect god-modules, high-coupling regions, or the hotspots identified.
 
