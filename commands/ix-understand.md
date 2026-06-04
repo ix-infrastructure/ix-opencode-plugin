@@ -11,11 +11,11 @@ Check `command -v ix` first. If unavailable, stop and say so.
 Run these commands **in parallel** using the Bash tool to discover the architecture:
 
 ```bash
-ix subsystems --format json
-ix subsystems --list --format json
-ix rank --by dependents --kind class --top 15 --exclude-path test --format json
-ix rank --by callers --kind function --top 15 --exclude-path test --format json
-ix stats --format json
+ix subsystems --format llm
+ix subsystems --list --format llm
+ix rank --by dependents --kind class --top 15 --exclude-path test --format llm
+ix rank --by callers --kind function --top 15 --exclude-path test --format llm
+ix stats --format llm
 ```
 
 From the results, identify:
@@ -29,8 +29,8 @@ If $ARGUMENTS specifies a target, scope the orient to that target's subsystems.
 
 For EACH major system in scope, run in parallel:
 ```bash
-ix overview <system> --format json
-ix contains <system> --format json
+ix overview <system> --format llm
+ix contains <system> --format llm
 ```
 
 Extract for each system:
@@ -42,7 +42,7 @@ Extract for each system:
 
 For the top 5-10 most important components (from Phase 1 rank results), run in parallel:
 ```bash
-ix explain <component> --format json
+ix explain <component> --format llm
 ```
 
 Extract: role, importance tier, caller/callee counts, why it matters architecturally.
@@ -53,7 +53,7 @@ Extract: role, importance tier, caller/callee counts, why it matters architectur
 
 For the 1-3 most important execution flows:
 ```bash
-ix trace <entry-point> --downstream --depth 2 --format json
+ix trace <entry-point> --downstream --depth 2 --format llm
 ```
 
 **Stop if** you have at least one traced flow and understand the primary data lifecycle.
@@ -62,7 +62,7 @@ ix trace <entry-point> --downstream --depth 2 --format json
 
 For at most 2 symbols where the graph left important patterns unclear:
 ```bash
-ix read <symbol> --format json
+ix read <symbol> --format llm
 ```
 
 Use only for: core type definitions, entry points, plugin registration patterns.

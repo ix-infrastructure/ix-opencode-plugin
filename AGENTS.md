@@ -192,20 +192,20 @@ An invalid command:
 
 | Task | Command |
 |---|---|
-| Architecture overview | `ix subsystems --format json` |
-| Structural summary | `ix overview <name> --format json` |
-| Understand a symbol | `ix explain <symbol> --format json` |
-| Find definition | `ix locate <symbol> --format json` |
-| Read one symbol's source | `ix read <symbol> --format json` |
-| Trace call chain | `ix trace <symbol> --format json` |
-| Who calls it | `ix callers <symbol> --format json` |
-| Members of a class | `ix contains <symbol> --format json` |
-| Upstream dependents | `ix depends <symbol> --depth 2 --format json` |
-| Blast radius | `ix impact <target> --format json` |
-| List entities in path | `ix inventory --kind function --path <dir> --format json` |
-| Text search | `ix text <pattern> --limit 20 --format json` |
-| Code smells | `ix smells --format json` |
-| Rank key components | `ix rank --by dependents --kind class --top 10 --format json` |
+| Architecture overview | `ix subsystems --format llm` |
+| Structural summary | `ix overview <name> --format llm` |
+| Understand a symbol | `ix explain <symbol> --format llm` |
+| Find definition | `ix locate <symbol> --format llm` |
+| Read one symbol's source | `ix read <symbol> --format llm` |
+| Trace call chain | `ix trace <symbol> --format llm` |
+| Who calls it | `ix callers <symbol> --format llm` |
+| Members of a class | `ix contains <symbol> --format llm` |
+| Upstream dependents | `ix depends <symbol> --depth 2 --format llm` |
+| Blast radius | `ix impact <target> --format llm` |
+| List entities in path | `ix inventory --kind function --path <dir> --format llm` |
+| Text search | `ix text <pattern> --limit 20 --format llm` |
+| Code smells | `ix smells --format llm` |
+| Rank key components | `ix rank --by dependents --kind class --top 10 --format llm` |
 | Refresh graph | `ix map --silent` |
 
 `ix rank` requires `--by` and `--kind`.

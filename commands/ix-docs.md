@@ -35,17 +35,17 @@ If `FULL=true` and more than 10 subsystems, auto-enable `SPLIT=true` unless `--s
 ## Phase 1 — Scope
 
 ```bash
-ix stats --format json
-ix subsystems --format json
-ix subsystems --list --format json
-ix briefing --format json 2>&1
+ix stats --format llm
+ix subsystems --format llm
+ix subsystems --list --format llm
+ix briefing --format llm 2>&1
 ```
 
 **Pro check:** If `ix briefing` returns JSON with a `revision` field, Pro is available. Extract `activeGoals`, `recentDecisions`, and `recentChanges` for **[Pro]** steps.
 
 If `TARGET` is not obviously the whole repo:
 ```bash
-ix locate "$TARGET" --format json
+ix locate "$TARGET" --format llm
 ```
 
 Resolve target scope: repo / top-level system / subsystem / module or file / class or symbol.
@@ -53,21 +53,21 @@ Resolve target scope: repo / top-level system / subsystem / module or file / cla
 ## Phase 2 — Architecture
 
 ```bash
-ix overview "$TARGET" --format json
-ix rank --by dependents --kind class --top 10 --exclude-path test --format json
-ix rank --by callers   --kind function --top 10 --exclude-path test --format json
+ix overview "$TARGET" --format llm
+ix rank --by dependents --kind class --top 10 --exclude-path test --format llm
+ix rank --by callers   --kind function --top 10 --exclude-path test --format llm
 ```
 
 For repo or system targets, also run:
 ```bash
-ix subsystems "$TARGET" --format json
+ix subsystems "$TARGET" --format llm
 ix subsystems "$TARGET" --explain
 ```
 
 For module or file targets:
 ```bash
-ix contains "$TARGET" --format json
-ix imports  "$TARGET" --format json
+ix contains "$TARGET" --format llm
+ix imports  "$TARGET" --format llm
 ```
 
 **Stop when** the top 3-5 important components and subsystem structure are clear.
@@ -77,7 +77,7 @@ Full mode: raise rank budgets to 20, inspect most important systems first.
 ## Phase 3 — Behavior
 
 ```bash
-ix explain "$TARGET" --format json
+ix explain "$TARGET" --format llm
 ```
 
 Also run `ix explain` for the most important orchestrators identified in Phase 2.
@@ -92,15 +92,15 @@ Run **one** `ix trace` only if the main execution flow is still unclear after `i
 
 For repo or large system targets, run for the top 3-5 boundary components, not the repo itself:
 ```bash
-ix callers  <boundary-component> --limit 20 --format json
-ix callees  <boundary-component> --limit 15 --format json
-ix depends  <boundary-component> --depth 2 --format json
+ix callers  <boundary-component> --limit 20 --format llm
+ix callees  <boundary-component> --limit 15 --format llm
+ix depends  <boundary-component> --depth 2 --format llm
 ```
 
 For module/symbol targets:
 ```bash
-ix callers "$TARGET" --limit 20 --format json
-ix depends "$TARGET" --depth 2 --format json
+ix callers "$TARGET" --limit 20 --format llm
+ix depends "$TARGET" --depth 2 --format llm
 ```
 
 **Skip for symbol-level targets** — relationship data at that scope adds minimal documentation value.
@@ -111,20 +111,20 @@ For repo targets, run `ix impact` for the top 3-5 high-centrality entities from 
 
 Otherwise:
 ```bash
-ix impact "$TARGET" --format json
+ix impact "$TARGET" --format llm
 ```
 
 ## Phase 6 — Health
 
 ```bash
-ix smells --format json
+ix smells --format llm
 ```
 
 Filter results by path prefix after retrieval if scoped to a subsystem.
 
 **[Pro]** If Pro is available and `recentDecisions` is non-empty:
 ```bash
-ix decisions --format json
+ix decisions --format llm
 ```
 
 **Skip for symbol-level or single-module targets.**
@@ -136,7 +136,7 @@ Code read budget: default 2, full 5. Symbol-level only.
 Only for: orchestrators with unclear control flow, critical entry points, high-risk components still ambiguous after `ix explain`.
 
 ```bash
-ix read <symbol> --format json
+ix read <symbol> --format llm
 ```
 
 Never exceed the budget. Omit or note gaps instead of over-reading.

@@ -10,7 +10,7 @@ Check `command -v ix` first. If unavailable, use Grep + Read as fallback.
 
 Run once at the start:
 ```bash
-ix briefing --format json 2>&1
+ix briefing --format llm 2>&1
 ```
 If it returns JSON with a `revision` field, Pro is available. Extract `recentDecisions` and `openBugs` for use in Pro steps below. If it errors, skip all **[Pro]** labeled steps.
 
@@ -21,24 +21,24 @@ Answer: *what is this, how does it connect, and what's the execution path?* Stop
 ## Phase 1 — Locate (always)
 
 ```bash
-ix locate $ARGUMENTS --format json
+ix locate $ARGUMENTS --format llm
 ```
 
 If multiple matches: use `--kind`, `--path`, or `--pick N` to resolve. Do not proceed until the entity is unambiguous.
 
-If `ix locate` returns nothing: try `ix text $ARGUMENTS --limit 10 --format json`.
+If `ix locate` returns nothing: try `ix text $ARGUMENTS --limit 10 --format llm`.
 
 ## Phase 2 — Explain (always)
 
 ```bash
-ix explain <resolved-symbol> --format json
+ix explain <resolved-symbol> --format llm
 ```
 
 Extract: role, importance, caller count, callee count, confidence score.
 
 If the resolved entity is a **class or module**, also run:
 ```bash
-ix overview <resolved-symbol> --format json
+ix overview <resolved-symbol> --format llm
 ```
 This reveals internal structure (members, sub-components) without reading source.
 
@@ -52,10 +52,10 @@ Run only the directions you need — not both by default:
 
 ```bash
 # If "who uses this" matters:
-ix callers <symbol> --limit 15 --format json
+ix callers <symbol> --limit 15 --format llm
 
 # If "what does this do internally" matters:
-ix callees <symbol> --limit 15 --format json
+ix callees <symbol> --limit 15 --format llm
 ```
 
 **Stop if:** you now know who uses it and what it depends on.
@@ -63,7 +63,7 @@ ix callees <symbol> --limit 15 --format json
 ## Phase 4 — Trace (run only if execution flow is unclear)
 
 ```bash
-ix trace <symbol> --format json
+ix trace <symbol> --format llm
 ```
 
 One trace only. Pick the most representative direction (`--upstream` or `--downstream`) based on the question.
@@ -74,7 +74,7 @@ One trace only. Pick the most representative direction (`--upstream` or `--downs
 
 Only if the above steps leave a specific implementation question unanswered:
 ```bash
-ix read <symbol> --format json
+ix read <symbol> --format llm
 ```
 
 Read **the symbol only** — never the full file. If the symbol is a class, read the specific method suspected.
@@ -85,7 +85,7 @@ Read **the symbol only** — never the full file. If the symbol is a class, read
 
 If Pro is available and `recentDecisions` from the briefing is non-empty, check for decisions affecting this symbol:
 ```bash
-ix decisions --topic <resolved-symbol> --format json
+ix decisions --topic <resolved-symbol> --format llm
 ```
 Include any relevant decisions in the output under **Design context**.
 

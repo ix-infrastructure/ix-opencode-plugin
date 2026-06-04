@@ -10,7 +10,7 @@ Check `command -v ix` first. If unavailable, use Grep to find all usages and est
 
 Run once at the start:
 ```bash
-ix briefing --format json 2>&1
+ix briefing --format llm 2>&1
 ```
 If it returns JSON with a `revision` field, Pro is available. Extract `openBugs` for use in Pro steps below. If it errors, skip all **[Pro]** labeled steps.
 
@@ -21,7 +21,7 @@ Answer: *what breaks if this changes, and is it safe to proceed?* Stop as early 
 ## Phase 1 — Risk score (always)
 
 ```bash
-ix impact $ARGUMENTS --format json
+ix impact $ARGUMENTS --format llm
 ```
 
 **Immediately classify:**
@@ -36,8 +36,8 @@ ix impact $ARGUMENTS --format json
 
 Run in parallel:
 ```bash
-ix callers  $ARGUMENTS --limit 20 --format json
-ix depends  $ARGUMENTS --depth 2 --format json
+ix callers  $ARGUMENTS --limit 20 --format llm
+ix depends  $ARGUMENTS --depth 2 --format llm
 ```
 
 Extract: direct callers by name and subsystem, transitive count.
@@ -47,7 +47,7 @@ Extract: direct callers by name and subsystem, transitive count.
 ## Phase 3 — Import chain and subsystem spread (high/critical only)
 
 ```bash
-ix imported-by $ARGUMENTS --format json
+ix imported-by $ARGUMENTS --format llm
 ```
 
 Cross-reference callers + dependents + importers to identify:
@@ -59,7 +59,7 @@ Cross-reference callers + dependents + importers to identify:
 
 If Pro is available and `openBugs` from the briefing is non-empty, check for bugs affecting this target:
 ```bash
-ix bugs --format json
+ix bugs --format llm
 ```
 Cross-reference open bugs against the direct callers and dependents identified in Phase 2. Any open bug touching the blast radius escalates the risk verdict — flag it explicitly in the output.
 

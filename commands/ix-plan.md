@@ -10,7 +10,7 @@ Check `command -v ix` first. If unavailable, use Grep + Read to manually assess 
 
 Run once at the start:
 ```bash
-ix briefing --format json 2>&1
+ix briefing --format llm 2>&1
 ```
 If it returns JSON with a `revision` field, Pro is available. Extract `activeGoals`, `activePlans`, and `openBugs` for use in Pro steps below. If it errors, skip all **[Pro]** labeled steps.
 
@@ -23,8 +23,8 @@ Answer: *in what order should these changes be made, what will break, and what n
 If `$ARGUMENTS` contains symbol names, proceed.
 If `$ARGUMENTS` is a description (no identifiable symbols), first run:
 ```bash
-ix text "$ARGUMENTS" --limit 10 --format json
-ix locate "$ARGUMENTS" --format json
+ix text "$ARGUMENTS" --limit 10 --format llm
+ix locate "$ARGUMENTS" --format llm
 ```
 Identify the 1–4 most relevant symbols and treat those as targets.
 
@@ -32,8 +32,8 @@ Identify the 1–4 most relevant symbols and treat those as targets.
 
 For each identified target, run simultaneously:
 ```bash
-ix impact  <target> --format json
-ix callers <target> --limit 10 --format json
+ix impact  <target> --format llm
+ix callers <target> --limit 10 --format llm
 ```
 
 Rank targets by risk level: critical > high > medium > low.
@@ -44,7 +44,7 @@ Rank targets by risk level: critical > high > medium > low.
 
 Find how the targets connect:
 ```bash
-ix trace <highest-risk-target> --to <second-target> --format json
+ix trace <highest-risk-target> --to <second-target> --format llm
 ```
 
 Run for the most architecturally significant pair. Skip if targets are in independent subsystems.
@@ -52,7 +52,7 @@ Run for the most architecturally significant pair. Skip if targets are in indepe
 ## Phase 4 — Shared dependents (only if high/critical targets exist)
 
 ```bash
-ix depends <highest-risk-target> --depth 2 --format json
+ix depends <highest-risk-target> --depth 2 --format llm
 ```
 
 Identify if any third symbol depends on multiple targets (shared blast radius — highest testing priority).
@@ -61,8 +61,8 @@ Identify if any third symbol depends on multiple targets (shared blast radius �
 
 If Pro is available, check for existing plans and goals that overlap with this change:
 ```bash
-ix plans --format json
-ix goals --format json
+ix plans --format llm
+ix goals --format llm
 ```
 
 Cross-reference `activePlans` from the briefing to avoid duplicate work. If an existing plan covers these targets, reference it.
