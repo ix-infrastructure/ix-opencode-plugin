@@ -1,0 +1,3 @@
+# zizmor configuration. Everything fixable is fixed in-place; this file records
+# any accepted, documented exceptions. There are none at present.
+rules: {}
