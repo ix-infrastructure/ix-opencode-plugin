@@ -212,7 +212,7 @@ check_cmd() {
 }
 
 check_cmd "OpenCode" "opencode" "install from https://opencode.ai"
-check_cmd "ix CLI"   "ix"       "install from https://github.com/ix-infrastructure/IX-Memory"
+check_cmd "ix CLI"   "ix"       "install from https://github.com/ix-infrastructure/Ix"
 check_cmd "Bun"      "bun"      "install from https://bun.sh"
 
 # ── Resolve source directory ──────────────────────────────────────────────────
