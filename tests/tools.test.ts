@@ -145,22 +145,38 @@ describe("RuntimeUnavailableFallback", () => {
 // ─── Hook contract (structural) ──────────────────────────────────────────────
 
 describe("PluginHookContract", () => {
-  test("plugin module exports a default plugin object", async () => {
-    const plugin = (await import("../plugins/ix-plugin")).default;
-    expect(plugin).toBeDefined();
-    expect(typeof plugin).toBe("object");
-    expect(typeof (plugin as { name: string }).name).toBe("string");
-    expect(Array.isArray((plugin as { tools: unknown[] }).tools)).toBe(true);
-    expect(Array.isArray((plugin as { hooks: unknown[] }).hooks)).toBe(true);
+  // The v1.4.2 plugin format (migrated in f9ea81e) exports a named `server`
+  // Plugin function. Invoking it yields the registration object: a `tool` map
+  // plus hook handlers keyed by event name (e.g. "tool.execute.after"). `ix` is
+  // unavailable here, so the startup probe inside `server` falls through its
+  // try/catch and the function still resolves.
+  const PLUGIN_CTX = {
+    directory: DEAD_CTX.directory,
+    worktree: DEAD_CTX.directory,
+  };
+
+  async function loadRegistration(): Promise<Record<string, unknown>> {
+    const mod = await import("../plugins/ix-plugin");
+    expect(typeof mod.server).toBe("function");
+    return (await mod.server(PLUGIN_CTX as never)) as Record<string, unknown>;
+  }
+
+  test("plugin module exports a server Plugin function", async () => {
+    const reg = await loadRegistration();
+    expect(reg).toBeDefined();
+    expect(typeof reg).toBe("object");
   });
 
   test("plugin registers 17 tools", async () => {
-    const plugin = (await import("../plugins/ix-plugin")).default;
-    expect((plugin as { tools: unknown[] }).tools).toHaveLength(17);
+    const reg = await loadRegistration();
+    const tools = reg.tool as Record<string, unknown>;
+    expect(typeof tools).toBe("object");
+    expect(Object.keys(tools)).toHaveLength(17);
+    expect(Object.keys(tools).sort()).toEqual([...EXPECTED_TOOL_NAMES].sort());
   });
 
-  test("plugin registers 5 hooks", async () => {
-    const plugin = (await import("../plugins/ix-plugin")).default;
-    expect((plugin as { hooks: unknown[] }).hooks).toHaveLength(5);
+  test("plugin registers the tool.execute.after hook", async () => {
+    const reg = await loadRegistration();
+    expect(typeof reg["tool.execute.after"]).toBe("function");
   });
 });

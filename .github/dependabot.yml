@@ -1,0 +1,16 @@
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]
+
+  # No npm ecosystem entry: this is a Bun project and the only lockfile Bun
+  # produces is bun.lockb, which Dependabot's npm updater cannot parse. There is
+  # also no committed lockfile to anchor resolutions, so an npm entry would open
+  # PRs that bump package.json ranges without regenerating bun.lockb, leaving the
+  # tree in a drifted, manually-fixable state. Revisit if Dependabot adds native
+  # Bun support, or pin a lockfile and switch the ecosystem accordingly.

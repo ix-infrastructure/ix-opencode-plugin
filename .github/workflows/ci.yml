@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+# Cancel superseded runs on the same ref so rapid pushes don't pile up runners.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ── Test ─────────────────────────────────────────────────────────────────
+  # This is a Bun project (package.json `test` = `bun test`), so CI installs
+  # the Bun toolchain rather than Node. Bun executes the TypeScript test files
+  # directly — there is no separate build/typecheck step (no build script and
+  # no tsconfig in the repo). `bun test` skips the @live suite unless
+  # IX_LIVE_TESTS=1 is set, so CI runs the offline contract/fallback tests.
+  test:
+    name: Test (bun)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: latest
+      - name: Install
+        run: bun install
+      - name: Test
+        run: bun test
+
+  # ── Aggregate gate ───────────────────────────────────────────────────────
+  # One stable required-status-check context. Branch protection requires only
+  # this job, so the job graph can be reshaped without orphaning required
+  # checks. Fails if any upstream job failed OR was skipped/cancelled.
+  ci-success:
+    name: CI Passed
+    if: always()
+    needs: [test]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify all required jobs succeeded
+        run: |
+          echo "test=${{ needs.test.result }}"
+          [ "${{ needs.test.result }}" = "success" ]
