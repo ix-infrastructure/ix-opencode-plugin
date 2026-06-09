@@ -179,7 +179,7 @@ function Assert-Command {
 }
 
 Assert-Command "OpenCode" "opencode" "install from https://opencode.ai"
-Assert-Command "ix CLI"   "ix"       "install from https://github.com/ix-infrastructure/IX-Memory"
+Assert-Command "ix CLI"   "ix"       "install from https://github.com/ix-infrastructure/Ix"
 Assert-Command "Bun"      "bun"      "install from https://bun.sh"
 
 # ── Resolve source directory ──────────────────────────────────────────────────
