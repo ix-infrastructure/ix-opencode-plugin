@@ -53,9 +53,9 @@ export async function execute(_params: Params, context: Context): Promise<string
       "",
       "ix CLI not found. Install Ix to enable graph-aware features:",
       "```",
-      "command -v ix   # check if installed",
-      "ix connect      # connect to workspace",
-      "ix map          # build initial graph",
+      "command -v ix     # check if installed",
+      "ix docker start   # start the local backend",
+      "ix map            # build the initial graph",
       "```",
     ].join("\n");
   }

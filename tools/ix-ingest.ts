@@ -160,7 +160,7 @@ async function probeStatus(dir: string): Promise<string> {
       "",
       `**Status:** Could not determine graph state — ${msg}`,
       "",
-      "Ensure ix is connected: `ix connect`",
+      "Ensure the backend is running: `ix docker start`, then check `ix status`.",
     ].join("\n");
   }
 }
@@ -208,9 +208,9 @@ function unavailable(): string {
     "**ix CLI not found.** Install Ix to enable graph-aware features.",
     "",
     "```",
-    "command -v ix   # check if installed",
-    "ix connect      # connect to workspace",
-    "ix map          # build initial graph",
+    "command -v ix     # check if installed",
+    "ix docker start   # start the local backend",
+    "ix map            # build the initial graph",
     "```",
   ].join("\n");
 }

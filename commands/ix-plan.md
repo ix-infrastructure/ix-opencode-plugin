@@ -62,7 +62,7 @@ Identify if any third symbol depends on multiple targets (shared blast radius �
 If Pro is available, check for existing plans and goals that overlap with this change:
 ```bash
 ix plans --format llm
-ix goals --format llm
+ix goal list --format llm
 ```
 
 Cross-reference `activePlans` from the briefing to avoid duplicate work. If an existing plan covers these targets, reference it.
@@ -106,7 +106,7 @@ After [target B]: verify [specific callers]
 - [any cross-subsystem boundary being crossed]
 
 ## Project context **[Pro]**
-- Goal this serves: [from ix goals — omit if Pro unavailable]
+- Goal this serves: [from `ix goal list` — omit if Pro unavailable]
 - Existing plan to track against: [plan ID + title, or "none — suggest creating one"]
 ```
 
