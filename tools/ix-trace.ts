@@ -7,6 +7,7 @@
  */
 
 import { $ } from "bun";
+import { tryLlm } from "../runtime/llm.ts";
 
 export const name = "ix-trace";
 export const description =
@@ -40,6 +41,11 @@ type TraceNode = {
 
 export async function execute(params: Params, context: Context): Promise<string> {
   const dir = context.worktree ?? context.directory;
+
+  const llmArgs = ["trace", params.symbol];
+  if (params.to) llmArgs.push("--to", params.to);
+  const fast = await tryLlm(llmArgs, dir);
+  if (fast) return `## ix-trace: ${params.symbol}\n\n${fast}`;
 
   const args = ["ix", "trace", params.symbol, "--format", "json"];
   if (params.to) args.push("--to", params.to);
