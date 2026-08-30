@@ -58,10 +58,15 @@ export async function callRuntime(
   };
   const body = JSON.stringify(scrubPayload(rawEnvelope));
 
-  try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const controller = new AbortController();
+  // Cleared in `finally`, not after the await: when the runtime is unreachable
+  // the fetch rejects, and a timer cleared only on the success path stays
+  // pending for its full duration. It keeps the event loop alive, so the host
+  // process hangs for `timeoutMs` at exit on every call that falls back to the
+  // CLI -- which is every call on a machine without the runtime running.
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
 
+  try {
     const res = await fetch(`${RUNTIME_BASE}${endpoint}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -69,7 +74,6 @@ export async function callRuntime(
       signal: controller.signal,
     });
 
-    clearTimeout(timer);
     if (!res.ok) return null;
     const json = (await res.json()) as RuntimeResponse;
     if (typeof json.preview_markdown === "string") {
@@ -78,6 +82,8 @@ export async function callRuntime(
     return json;
   } catch {
     return null;
+  } finally {
+    clearTimeout(timer);
   }
 }
 
@@ -91,19 +97,20 @@ export async function getRuntime(
 ): Promise<RuntimeResponse | null> {
   const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
 
-  try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
 
+  try {
     const res = await fetch(`${RUNTIME_BASE}${endpoint}`, {
       signal: controller.signal,
     });
 
-    clearTimeout(timer);
     if (!res.ok) return null;
     return (await res.json()) as RuntimeResponse;
   } catch {
     return null;
+  } finally {
+    clearTimeout(timer);
   }
 }
 
@@ -112,15 +119,18 @@ export async function getRuntime(
  * Returns false on any failure.
  */
 export async function isRuntimeAvailable(): Promise<boolean> {
-  try {
-    const controller = new AbortController();
-    setTimeout(() => controller.abort(), HEALTH_TIMEOUT_MS);
+  const controller = new AbortController();
+  // This one was never captured at all, so it leaked on every path.
+  const timer = setTimeout(() => controller.abort(), HEALTH_TIMEOUT_MS);
 
+  try {
     const res = await fetch(`${RUNTIME_BASE}/v2/status`, {
       signal: controller.signal,
     });
     return res.ok;
   } catch {
     return false;
+  } finally {
+    clearTimeout(timer);
   }
 }
