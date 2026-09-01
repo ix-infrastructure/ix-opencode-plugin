@@ -359,3 +359,131 @@ test("runtime client does not hold the process open after an unreachable call", 
     rmSync(dir, { recursive: true, force: true });
   }
 }, 20_000);
+
+
+// ─── NonZeroExitAcrossTools (Ix#547) ─────────────────────────────────────────
+//
+// The block above proved the point for one tool. Ix#547 takes the number of
+// commands that exit 1-with-a-body from three to thirteen, and every tool here
+// drove `ix` through a bare `.text()`, which discards stdout on a non-zero
+// exit. So the coverage has to be per tool: the shared runner is only half the
+// fix, and a tool that never adopted it is still broken.
+//
+// Same child-process harness and the same reason for it — bun's `$` resolves
+// from the real process PATH, so an in-process stub silently runs the
+// developer's real `ix`.
+
+/**
+ * Run one tool with a stubbed `ix` that exits non-zero after printing `body`.
+ * Returns the tool's rendered output.
+ */
+async function runNamedToolWithStub(
+  toolFile: string,
+  params: Record<string, unknown>,
+  stubScript: string,
+): Promise<string> {
+  const dir = mkdtempSync(path.join(tmpdir(), "ix-stub-multi-"));
+  try {
+    const bin = path.join(dir, "ix");
+    writeFileSync(bin, `#!/bin/sh\n${stubScript}\n`);
+    chmodSync(bin, 0o755);
+
+    const runner = path.join(dir, "runner.ts");
+    const toolPath = path.resolve(import.meta.dir, `../tools/${toolFile}`);
+    writeFileSync(
+      runner,
+      `import * as tool from ${JSON.stringify(toolPath)};\n` +
+      `const out = await tool.execute(${JSON.stringify(params)}, { directory: ${JSON.stringify(dir)} });\n` +
+      `process.stdout.write(String(out));\n`,
+    );
+
+    const proc = Bun.spawn([process.execPath, runner], {
+      env: {
+        ...process.env,
+        PATH: `${dir}${path.delimiter}/usr/bin${path.delimiter}/bin`,
+        // The llm fast path is version-gated and would otherwise shadow the
+        // JSON path these cases are about. Disabling it explicitly keeps each
+        // case on one path rather than relying on the stub failing to look
+        // like a version string.
+        IX_DISABLE_LLM_FORMAT: "1",
+      },
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+    const output = await new Response(proc.stdout).text();
+    await proc.exited;
+    return output;
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+describe("NonZeroExitAcrossTools", () => {
+  // `ix impact` on a file being edited is the highest-traffic ix call in the
+  // fleet, and an unresolved target there is routine — a new file, or one not
+  // yet ingested. Reporting that as "ix unavailable" is the single worst
+  // symptom of the old behaviour.
+  test("ix-impact renders the record ix printed while exiting 1", async () => {
+    const output = await runNamedToolWithStub(
+      "ix-impact.ts",
+      { target: "src/does-not-exist.ts" },
+      `echo '{"error":"unresolved_target","message":"No entity found matching \\"x\\"."}'; exit 1`,
+    );
+
+    expect(output).not.toContain("ix unavailable");
+  });
+
+  test("ix-locate renders the body rather than reporting ix unavailable", async () => {
+    const output = await runNamedToolWithStub(
+      "ix-locate.ts",
+      { pattern: "SomePattern" },
+      `echo '[]'; exit 1`,
+    );
+
+    expect(output).not.toContain("ix unavailable");
+    expect(output).toContain("No matches found");
+  });
+
+  test("ix-neighbors keeps the record for callers", async () => {
+    const output = await runNamedToolWithStub(
+      "ix-neighbors.ts",
+      { symbol: "SomeSymbol", direction: "callers" },
+      `echo '{"items":[{"name":"CallerOne"}],"count":1}'; exit 1`,
+    );
+
+    expect(output).toContain("CallerOne");
+    expect(output).not.toContain("(parse error)");
+  });
+
+  test("ix-explain keeps the record", async () => {
+    const output = await runNamedToolWithStub(
+      "ix-explain.ts",
+      { symbol: "SomeSymbol" },
+      `echo '{"name":"SomeSymbol","kind":"function"}'; exit 1`,
+    );
+
+    expect(output).not.toContain("ix unavailable");
+  });
+
+  // The other half of the contract: a non-zero exit with nothing on stdout is
+  // still a failure, and must not be dressed up as an answer.
+  test("an empty non-zero exit is still reported as unavailable", async () => {
+    const output = await runNamedToolWithStub(
+      "ix-impact.ts",
+      { target: "src/does-not-exist.ts" },
+      "exit 1",
+    );
+
+    expect(output).toContain("ix unavailable");
+  });
+
+  test("the failure detail carries ix's own stderr", async () => {
+    const output = await runNamedToolWithStub(
+      "ix-impact.ts",
+      { target: "src/does-not-exist.ts" },
+      `echo 'backend unreachable at :8090' >&2; exit 1`,
+    );
+
+    expect(output).toContain("backend unreachable at :8090");
+  });
+});

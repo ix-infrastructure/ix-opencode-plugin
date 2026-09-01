@@ -6,6 +6,7 @@
  */
 
 import { $ } from "bun";
+import { runIx, safeRun, failureDetail } from "../runtime/cli.ts";
 import { callRuntime } from "../runtime/client.ts";
 
 export const name = "ix-impact";
@@ -44,13 +45,9 @@ export async function execute(
   }, { dir });
   if (typeof rr?.preview_markdown === "string") return rr.preview_markdown;
 
-  let impactOutput: string;
-  try {
-    impactOutput = await $`ix impact ${params.target} --format json`.cwd(dir).text();
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return unavailable(params.target, msg);
-  }
+  const run = await runIx($`ix impact ${params.target} --format json`.cwd(dir));
+  if (!run?.stdout.trim()) return unavailable(params.target, failureDetail(run));
+  const impactOutput = run.stdout;
 
   let impact: {
     target?: string;
@@ -86,7 +83,12 @@ export async function execute(
   // Phase 2 — fetch callers for medium/high/critical
   let callers: { name: string; subsystem?: string; file?: string }[] = [];
   try {
-    const callersOutput = await $`ix callers ${params.target} --limit 20 --format json`.cwd(dir).text();
+    // `ix callers` is in the set Ix#547 makes exit 1 on an unresolved target
+    // while still printing the record.
+    const callersOutput = await safeRun(
+      $`ix callers ${params.target} --limit 20 --format json`.cwd(dir),
+    );
+    if (callersOutput === null) throw new Error("no output");
     const parsed = JSON.parse(callersOutput);
     callers = parsed.items ?? [];
   } catch {

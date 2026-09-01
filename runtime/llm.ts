@@ -40,6 +40,7 @@
  */
 
 import { $ } from "bun";
+import { safeRun } from "./cli.ts";
 import { redactSecrets } from "./secrets.ts";
 
 type SemVer = [number, number, number];
@@ -163,12 +164,15 @@ export async function tryLlm(
   const version = await detectVersion(cwd);
   if (version === null || !gte(version, floor)) return null;
 
-  let out: string;
-  try {
-    out = await $`ix ${[...args, "--format", "llm"]}`.cwd(cwd).quiet().text();
-  } catch {
-    return null;
-  }
+  // `safeRun`, not a bare `.text()`: several ix commands exit 1 for "that does
+  // not exist" while printing a complete llm record, and Ix#547 takes that from
+  // three commands to thirteen. Throwing the body away on a non-zero exit sends
+  // every one of those down the JSON path, which discards it a second time and
+  // reports the CLI as unavailable. `isLlmErrorLine` below already handles a
+  // genuine `error code=...` record, so a failure that says something useful is
+  // still rejected on its merits rather than on its exit code.
+  const out = await safeRun($`ix ${[...args, "--format", "llm"]}`.cwd(cwd));
+  if (out === null) return null;
 
   // Scrubbed before it reaches the model. The JSON path does not do this today
   // — only the runtime client scrubs — so this is not parity with it, just the

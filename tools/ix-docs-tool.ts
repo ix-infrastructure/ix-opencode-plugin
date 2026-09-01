@@ -7,6 +7,7 @@
  */
 
 import { $ } from "bun";
+import { safeRun } from "../runtime/cli.ts";
 import { callRuntime } from "../runtime/client.ts";
 
 export const name = "ix-docs-tool";
@@ -197,27 +198,3 @@ function formatOverview(overview: {
   return lines.join("\n") + "\n";
 }
 
-/**
- * Run an `ix` command, keeping stdout even when it exits non-zero.
- *
- * Bun's `$` throws on a non-zero exit and `.text()` then discards stdout
- * entirely. That is fine while every `ix` command exits 0, but several already
- * exit 1 to signal "asked for something that does not exist" while still
- * printing a useful JSON body -- and `locate` is about to join them (Ix#539).
- * Without `.nothrow()` those diagnostics vanish and the tool falls back to a
- * generic "Not found in graph", losing the specific guidance ix supplied.
- *
- * `.nothrow()` returns "" for a missing binary and for a failure with no
- * output, both of which still map to null, so the ix-unavailable path is
- * unchanged.
- */
-async function safeRun(
-  cmd: ReturnType<typeof $>
-): Promise<string | null> {
-  try {
-    const out = await cmd.nothrow().text();
-    return out.trim() ? out : null;
-  } catch {
-    return null;
-  }
-}

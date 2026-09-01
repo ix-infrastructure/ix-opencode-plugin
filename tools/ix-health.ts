@@ -7,6 +7,7 @@
  */
 
 import { $ } from "bun";
+import { safeRun } from "../runtime/cli.ts";
 import { getRuntime } from "../runtime/client.ts";
 
 export const name = "ix-health";
@@ -66,7 +67,11 @@ export async function execute(_params: Params, context: Context): Promise<string
   let staleness: string | undefined;
 
   try {
-    const statusOut = await $`ix status --format json`.cwd(dir).quiet().text();
+    // Kept via safeRun: `ix status` exits non-zero for an unhealthy graph while
+    // still describing it (Ix#549), and that description is exactly what this
+    // health report is for.
+    const statusOut = await safeRun($`ix status --format json`.cwd(dir));
+    if (statusOut === null) throw new Error("no output");
     const status = JSON.parse(statusOut);
     graphPresent = (status.currentRev ?? 0) > 0 || status.graphPresent === true;
     fileCount = status.fileCount;
@@ -74,7 +79,8 @@ export async function execute(_params: Params, context: Context): Promise<string
   } catch {
     // Fall back to subsystems probe
     try {
-      const subsOut = await $`ix subsystems --list --format json`.cwd(dir).quiet().text();
+      const subsOut = await safeRun($`ix subsystems --list --format json`.cwd(dir));
+      if (subsOut === null) throw new Error("no output");
       const parsed = JSON.parse(subsOut);
       const names: string[] = parsed.names ?? parsed.list ?? [];
       graphPresent = names.length > 0;

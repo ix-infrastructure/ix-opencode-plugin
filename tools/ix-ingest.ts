@@ -6,6 +6,7 @@
  */
 
 import { $ } from "bun";
+import { safeRun } from "../runtime/cli.ts";
 import { callRuntime } from "../runtime/client.ts";
 
 export const name = "ix-ingest";
@@ -100,13 +101,12 @@ export async function execute(
   }
 
   // Status check
-  let statusOutput = "";
-  try {
-    statusOutput = await $`ix status --format json`.cwd(dir).text();
-  } catch {
-    // ix status may not be available — fall back to subsystems probe
-    return await probeStatus(dir);
-  }
+  // `ix status` exits non-zero when the graph is unhealthy but still reports
+  // why (Ix#549). That report is the answer this tool wants; only a genuinely
+  // empty result should fall through to the probe.
+  const statusRun = await safeRun($`ix status --format json`.cwd(dir));
+  if (statusRun === null) return await probeStatus(dir);
+  const statusOutput = statusRun;
 
   let status: {
     connected?: boolean;
@@ -128,7 +128,8 @@ export async function execute(
 async function probeStatus(dir: string): Promise<string> {
   // Probe by running ix subsystems — if it returns data, graph is present
   try {
-    const output = await $`ix subsystems --list --format json`.cwd(dir).text();
+    const output = await safeRun($`ix subsystems --list --format json`.cwd(dir));
+    if (output === null) throw new Error("no output");
     const parsed = JSON.parse(output);
     const names: string[] = parsed.names ?? parsed.list ?? [];
 

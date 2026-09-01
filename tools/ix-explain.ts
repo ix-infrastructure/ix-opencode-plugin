@@ -7,6 +7,7 @@
  */
 
 import { $ } from "bun";
+import { runIx, failureDetail } from "../runtime/cli.ts";
 import { tryLlm } from "../runtime/llm.ts";
 
 export const name = "ix-explain";
@@ -36,13 +37,9 @@ export async function execute(params: Params, context: Context): Promise<string>
   const fast = await tryLlm(["explain", params.symbol], dir);
   if (fast) return `## ix-explain: ${params.symbol}\n\n${fast}`;
 
-  let output: string;
-  try {
-    output = await $`ix explain ${params.symbol} --format json`.cwd(dir).text();
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return unavailable(params.symbol, msg);
-  }
+  const run = await runIx($`ix explain ${params.symbol} --format json`.cwd(dir));
+  if (!run?.stdout.trim()) return unavailable(params.symbol, failureDetail(run));
+  const output = run.stdout;
 
   let raw: {
     resolvedTarget?: { kind?: string; name?: string; path?: string };
