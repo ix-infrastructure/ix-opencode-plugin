@@ -7,6 +7,7 @@
  */
 
 import { $ } from "bun";
+import { tryLlm } from "../runtime/llm.ts";
 
 export const name = "ix-smells";
 export const description =
@@ -38,6 +39,11 @@ type Context = { directory: string; worktree?: string };
 export async function execute(params: Params, context: Context): Promise<string> {
   const dir = context.worktree ?? context.directory;
   const limit = Math.min(params.limit ?? 50, 200);
+
+  const llmArgs = ["smells"];
+  if (params.path) llmArgs.push("--path", params.path);
+  const fast = await tryLlm(llmArgs, dir);
+  if (fast) return `## ix-smells\n\n${fast}`;
 
   const args = ["ix", "smells", "--format", "json"];
   if (params.path) args.push("--path", params.path);

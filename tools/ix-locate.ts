@@ -7,6 +7,7 @@
  */
 
 import { $ } from "bun";
+import { tryLlm } from "../runtime/llm.ts";
 
 export const name = "ix-locate";
 export const description =
@@ -51,6 +52,12 @@ type Context = {
 export async function execute(params: Params, context: Context): Promise<string> {
   const dir = context.worktree ?? context.directory;
   const limit = Math.min(params.limit ?? 20, 100);
+
+  const llmArgs = ["text", params.pattern, "--limit", String(limit)];
+  if (params.path) llmArgs.push("--path", params.path);
+  if (params.language) llmArgs.push("--language", params.language);
+  const fast = await tryLlm(llmArgs, dir);
+  if (fast) return `## ix-locate: ${params.pattern}\n\n${fast}`;
 
   const args = ["ix", "text", params.pattern, "--limit", String(limit), "--format", "json"];
   if (params.path) args.push("--path", params.path);
