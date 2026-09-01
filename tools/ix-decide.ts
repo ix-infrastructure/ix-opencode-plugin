@@ -10,6 +10,7 @@
  */
 
 import { $ } from "bun";
+import { safeRun } from "../runtime/cli.ts";
 import { callRuntime } from "../runtime/client.ts";
 
 export const name = "ix-decide";
@@ -119,9 +120,12 @@ async function fallbackImpactVerdict(
   const impacts: { path: string; result: ImpactResult | null }[] = [];
 
   for (const filePath of paths.slice(0, 5)) {
+    // `safeRun`, not `.text()`: `ix impact` exits 1 for a path it cannot resolve
+    // while still printing the record, and that record is what this loop is
+    // here to read. A path with genuinely no output still lands as null below.
+    const out = await safeRun($`ix impact ${filePath} --format json`.cwd(dir));
     try {
-      const out = await $`ix impact ${filePath} --format json`.cwd(dir).quiet().text();
-      impacts.push({ path: filePath, result: JSON.parse(out) as ImpactResult });
+      impacts.push({ path: filePath, result: JSON.parse(out ?? "") as ImpactResult });
     } catch {
       impacts.push({ path: filePath, result: null });
     }

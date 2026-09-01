@@ -6,6 +6,7 @@
  */
 
 import { $ } from "bun";
+import { safeRun } from "../runtime/cli.ts";
 import { tryLlm } from "../runtime/llm.ts";
 import { callRuntime } from "../runtime/client.ts";
 
@@ -119,17 +120,16 @@ async function fetchSection(
   if (fast) return `**${capitalize(direction)}:**\n${fast}\n`;
 
   try {
-    let output: string;
-    if (direction === "depends" && depth !== undefined) {
-      output = await $`ix depends ${symbol} --depth ${depth} --format json`
-        .cwd(dir)
-        .text();
-    } else {
-      output =
-        await $`ix ${direction} ${symbol} --limit ${limit} --format json`
-          .cwd(dir)
-          .text();
-    }
+    // Every direction this tool drives -- callers, callees, imports,
+    // imported-by, depends -- is in the set Ix#547 makes exit 1 on a target it
+    // cannot resolve, while still printing the record. `safeRun` keeps that
+    // record; a bare `.text()` would drop it and report "(parse error)".
+    const output = await safeRun(
+      direction === "depends" && depth !== undefined
+        ? $`ix depends ${symbol} --depth ${depth} --format json`.cwd(dir)
+        : $`ix ${direction} ${symbol} --limit ${limit} --format json`.cwd(dir),
+    );
+    if (output === null) return `**${direction}:** unavailable\n`;
 
     let result: {
       items?: { name: string; kind?: string; file?: string; subsystem?: string; callCount?: number }[];

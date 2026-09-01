@@ -1,0 +1,273 @@
+/**
+ * Provides path operations through the Effect environment.
+ *
+ * The `Path` service works with file system paths without tying code to one
+ * concrete platform module. It exposes common operations such as joining,
+ * normalizing, parsing, formatting, resolving, and converting paths to or from
+ * file URLs. This module includes the service interface, parsed path type,
+ * service tag, runtime marker, and built-in POSIX path layer.
+ *
+ * @since 4.0.0
+ */
+import * as Context from "./Context.ts";
+import * as Effect from "./Effect.ts";
+import * as Layer from "./Layer.ts";
+import { BadArgument } from "./PlatformError.ts";
+/**
+ * Runtime type identifier used to mark implementations of the `Path` service.
+ *
+ * **Details**
+ *
+ * The marker is the exact string stored on `Path` service implementations.
+ * Most code should depend on the `Path` service instead of inspecting this
+ * value directly.
+ *
+ * @see {@link layer} for the built-in POSIX `Path` service layer
+ *
+ * @category type IDs
+ * @since 4.0.0
+ */
+export declare const TypeId = "~effect/platform/Path";
+/**
+ * Defines the service interface for platform-specific path manipulation.
+ *
+ * **When to use**
+ *
+ * Use to depend on path operations through the Effect environment instead of a
+ * concrete host path module.
+ *
+ * **Details**
+ *
+ * The service exposes operations for joining, normalizing, parsing,
+ * formatting, and converting file system paths. URL conversion methods return
+ * `Effect`s because invalid file URLs or paths can fail with `BadArgument`.
+ *
+ * **Example** (Using path operations)
+ *
+ * ```ts
+ * import { Effect, Path } from "effect"
+ *
+ * const program = Effect.gen(function*() {
+ *   const path = yield* Path.Path
+ *
+ *   // Use various path operations
+ *   const joined = path.join("home", "user", "documents")
+ *   const normalized = path.normalize("./path/../to/file.txt")
+ *   const basename = path.basename("/path/to/file.txt")
+ *   const dirname = path.dirname("/path/to/file.txt")
+ *   const extname = path.extname("file.txt")
+ *   const isAbs = path.isAbsolute("/absolute/path")
+ *   const parsed = path.parse("/path/to/file.txt")
+ *   const relative = path.relative("/from/path", "/to/path")
+ *   const resolved = path.resolve("relative", "path")
+ *
+ *   console.log({
+ *     joined,
+ *     normalized,
+ *     basename,
+ *     dirname,
+ *     extname,
+ *     isAbs,
+ *     parsed,
+ *     relative,
+ *     resolved
+ *   })
+ * })
+ * ```
+ *
+ * @category models
+ * @since 4.0.0
+ */
+export interface Path {
+    readonly [TypeId]: typeof TypeId;
+    readonly sep: string;
+    readonly basename: (path: string, suffix?: string) => string;
+    readonly dirname: (path: string) => string;
+    readonly extname: (path: string) => string;
+    readonly format: (pathObject: Partial<Path.Parsed>) => string;
+    readonly fromFileUrl: (url: URL) => Effect.Effect<string, BadArgument>;
+    readonly isAbsolute: (path: string) => boolean;
+    readonly join: (...paths: ReadonlyArray<string>) => string;
+    readonly normalize: (path: string) => string;
+    readonly parse: (path: string) => Path.Parsed;
+    readonly relative: (from: string, to: string) => string;
+    readonly resolve: (...pathSegments: ReadonlyArray<string>) => string;
+    readonly toFileUrl: (path: string) => Effect.Effect<URL, BadArgument>;
+    readonly toNamespacedPath: (path: string) => string;
+}
+/**
+ * Namespace containing types associated with the `Path` service.
+ *
+ * **When to use**
+ *
+ * Use to reference types associated with path parsing and formatting.
+ *
+ * **Example** (Working with parsed paths)
+ *
+ * ```ts
+ * import { Effect, Path } from "effect"
+ *
+ * // Access types and utilities in the Path namespace
+ * const program = Effect.gen(function*() {
+ *   const path = yield* Path.Path
+ *
+ *   // Parse a path and get a Path.Parsed object
+ *   const parsed = path.parse("/home/user/file.txt")
+ *
+ *   // The parsed object conforms to the Path.Parsed interface
+ *   const exampleParsed = {
+ *     root: "/",
+ *     dir: "/home/user",
+ *     base: "file.txt",
+ *     ext: ".txt",
+ *     name: "file"
+ *   }
+ *
+ *   console.log(parsed, exampleParsed)
+ * })
+ * ```
+ *
+ * @since 4.0.0
+ */
+export declare namespace Path {
+    /**
+     * Structured representation of a parsed file system path.
+     *
+     * **When to use**
+     *
+     * Use to model the object form produced by `Path.parse` and consumed by
+     * `Path.format`.
+     *
+     * **Details**
+     *
+     * The fields correspond to the path root, directory, base filename,
+     * extension, and filename without extension, matching the shape consumed by
+     * `Path.format`.
+     *
+     * **Example** (Parsing and formatting paths)
+     *
+     * ```ts
+     * import { Effect, Path } from "effect"
+     *
+     * const program = Effect.gen(function*() {
+     *   const path = yield* Path.Path
+     *
+     *   // Parse a path into its components
+     *   const parsed = path.parse("/home/user/documents/file.txt")
+     *   console.log(parsed)
+     *   // {
+     *   //   root: "/",
+     *   //   dir: "/home/user/documents",
+     *   //   base: "file.txt",
+     *   //   ext: ".txt",
+     *   //   name: "file"
+     *   // }
+     *
+     *   // Format a path from its components
+     *   const formatted = path.format({
+     *     dir: "/home/user",
+     *     name: "newfile",
+     *     ext: ".ts"
+     *   })
+     *   console.log(formatted) // "/home/user/newfile.ts"
+     * })
+     * ```
+     *
+     * @category models
+     * @since 4.0.0
+     */
+    interface Parsed {
+        readonly root: string;
+        readonly dir: string;
+        readonly base: string;
+        readonly ext: string;
+        readonly name: string;
+    }
+}
+/**
+ * Service tag for accessing the current `Path` implementation.
+ *
+ * **When to use**
+ *
+ * Use when you need path operations supplied by an effect's environment.
+ *
+ * **Example** (Providing a custom Path service)
+ *
+ * ```ts
+ * import { Effect, Layer, Path } from "effect"
+ *
+ * // Create a custom path implementation
+ * const customPath: Path.Path = {
+ *   [Path.TypeId]: Path.TypeId,
+ *   sep: "/",
+ *   basename: (path: string, suffix?: string) => {
+ *     const base = path.split("/").pop() || ""
+ *     return suffix && base.endsWith(suffix)
+ *       ? base.slice(0, -suffix.length)
+ *       : base
+ *   },
+ *   dirname: (path: string) => path.split("/").slice(0, -1).join("/") || "/",
+ *   extname: (path: string) => {
+ *     const match = path.match(/\.[^.]*$/)
+ *     return match ? match[0] : ""
+ *   },
+ *   format: (pathObject) => {
+ *     const dir = pathObject.dir || ""
+ *     const name = pathObject.name || ""
+ *     const ext = pathObject.ext || ""
+ *     return dir ? `${dir}/${name}${ext}` : `${name}${ext}`
+ *   },
+ *   fromFileUrl: (url: URL) => Effect.succeed(url.pathname),
+ *   isAbsolute: (path: string) => path.startsWith("/"),
+ *   join: (...paths: ReadonlyArray<string>) => paths.join("/"),
+ *   normalize: (path: string) => path.replace(/\/+/g, "/"),
+ *   parse: (path: string) => ({
+ *     root: path.startsWith("/") ? "/" : "",
+ *     dir: path.split("/").slice(0, -1).join("/") || "/",
+ *     base: path.split("/").pop() || "",
+ *     ext: path.match(/\.[^.]*$/)?.[0] || "",
+ *     name: path.split("/").pop()?.replace(/\.[^.]*$/, "") || ""
+ *   }),
+ *   relative: (from: string, to: string) => to.replace(from, ""),
+ *   resolve: (...pathSegments: ReadonlyArray<string>) => pathSegments.join("/"),
+ *   toFileUrl: (path: string) => Effect.succeed(new URL(`file://${path}`)),
+ *   toNamespacedPath: (path: string) => path
+ * }
+ *
+ * // Provide the path service
+ * const customPathLayer = Layer.succeed(Path.Path)(customPath)
+ *
+ * const program = Effect.gen(function*() {
+ *   const path = yield* Path.Path
+ *   const joined = path.join("home", "user", "file.txt")
+ *   console.log(joined) // "home/user/file.txt"
+ * })
+ *
+ * // Run with custom path implementation
+ * const result = Effect.provide(program, customPathLayer)
+ * ```
+ *
+ * @category services
+ * @since 4.0.0
+ */
+export declare const Path: Context.Service<Path, Path>;
+/**
+ * Layer that provides the built-in POSIX `Path` implementation.
+ *
+ * **When to use**
+ *
+ * Use when you need an effect that requires the `Path` service to run with the
+ * built-in POSIX path implementation.
+ *
+ * **Details**
+ *
+ * The layer provides a static service whose separator is `/` and whose
+ * operations use POSIX path semantics.
+ *
+ * @see {@link Path} for accessing the `Path` service from an effect
+ *
+ * @category layers
+ * @since 4.0.0
+ */
+export declare const layer: Layer.Layer<Path>;
+//# sourceMappingURL=Path.d.ts.map

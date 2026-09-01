@@ -6,6 +6,7 @@
  */
 
 import { $ } from "bun";
+import { runIx, failureDetail } from "../runtime/cli.ts";
 import { callRuntime } from "../runtime/client.ts";
 
 export const name = "ix-query";
@@ -62,15 +63,13 @@ export async function execute(
   if (params.kind) locateArgs.push("--kind", params.kind);
   if (params.path) locateArgs.push("--path", params.path);
 
-  let locateOutput = "";
   let explainOutput = "";
 
-  try {
-    locateOutput = await $`${locateArgs}`.cwd(dir).text();
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return fallbackUnavailable("ix-query", params.symbol, msg);
+  const locateRun = await runIx($`${locateArgs}`.cwd(dir));
+  if (!locateRun?.stdout.trim()) {
+    return fallbackUnavailable("ix-query", params.symbol, failureDetail(locateRun));
   }
+  const locateOutput = locateRun.stdout;
 
   let locateResult: { results?: { name: string; kind: string; file: string }[] };
   try {
@@ -86,12 +85,13 @@ export async function execute(
 
   const entity = results[0];
 
-  try {
-    explainOutput = await $`ix explain ${entity.name} --format json`.cwd(dir).text();
-  } catch {
-    // Explain failed — return locate result only
-    return formatLocateOnly(params.symbol, results);
-  }
+  // `ix explain` is enrichment on top of a locate that already succeeded, so a
+  // miss here degrades to the locate-only view rather than failing the tool --
+  // but a body printed alongside a non-zero exit is still an answer worth
+  // parsing, which a bare `.text()` would have discarded.
+  const explainRun = await runIx($`ix explain ${entity.name} --format json`.cwd(dir));
+  if (!explainRun?.stdout.trim()) return formatLocateOnly(params.symbol, results);
+  explainOutput = explainRun.stdout;
 
   let explainResult: {
     name?: string;

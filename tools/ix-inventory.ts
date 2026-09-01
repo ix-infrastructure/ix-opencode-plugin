@@ -6,6 +6,7 @@
  */
 
 import { $ } from "bun";
+import { runIx, failureDetail } from "../runtime/cli.ts";
 import { tryLlm } from "../runtime/llm.ts";
 
 export const name = "ix-inventory";
@@ -43,13 +44,9 @@ export async function execute(params: Params, context: Context): Promise<string>
   const fast = await tryLlm(["inventory", "--kind", kind, "--path", params.path], dir);
   if (fast) return `## ix-inventory: ${params.path}\n\n${fast}`;
 
-  let output: string;
-  try {
-    output = await $`ix inventory --kind ${kind} --path ${params.path} --format json`.cwd(dir).text();
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return unavailable(params.path, kind, msg);
-  }
+  const run = await runIx($`ix inventory --kind ${kind} --path ${params.path} --format json`.cwd(dir));
+  if (!run?.stdout.trim()) return unavailable(params.path, kind, failureDetail(run));
+  const output = run.stdout;
 
   let raw: {
     kind?: string;

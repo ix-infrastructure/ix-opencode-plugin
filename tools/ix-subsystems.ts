@@ -7,6 +7,7 @@
  */
 
 import { $ } from "bun";
+import { runIx, failureDetail } from "../runtime/cli.ts";
 import { tryLlm } from "../runtime/llm.ts";
 
 export const name = "ix-subsystems";
@@ -28,13 +29,9 @@ export async function execute(_params: Params, context: Context): Promise<string
   const fast = await tryLlm(["subsystems"], dir);
   if (fast) return `## ix-subsystems\n\n${fast}`;
 
-  let output: string;
-  try {
-    output = await $`ix subsystems --format json`.cwd(dir).text();
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return unavailable(msg);
-  }
+  const run = await runIx($`ix subsystems --format json`.cwd(dir));
+  if (!run?.stdout.trim()) return unavailable(failureDetail(run));
+  const output = run.stdout;
 
   let raw: {
     file_count?: number;

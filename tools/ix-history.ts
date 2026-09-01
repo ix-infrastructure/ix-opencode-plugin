@@ -6,6 +6,7 @@
  */
 
 import { $ } from "bun";
+import { safeRun } from "../runtime/cli.ts";
 
 export const name = "ix-history";
 export const description =
@@ -63,7 +64,11 @@ export async function execute(
 
   if (include.includes("briefing") || !params.topic) {
     try {
-      const output = await $`ix briefing --format json`.cwd(dir).text();
+      // On OSS `ix briefing` is a Pro stub: it exits non-zero with nothing on
+      // stdout, so safeRun still returns null and Pro stays undetected. What
+      // changes is a Pro CLI that exits non-zero while reporting why.
+      const output = await safeRun($`ix briefing --format json`.cwd(dir));
+      if (output === null) throw new Error("no output");
       const parsed = JSON.parse(output);
       if (parsed.revision) {
         proAvailable = true;
@@ -95,9 +100,10 @@ export async function execute(
   if (include.includes("decisions") || include.includes("briefing")) {
     if (params.topic) {
       try {
-        const output = await $`ix decisions --topic ${params.topic} --format json`
-          .cwd(dir)
-          .text();
+        const output = await safeRun(
+          $`ix decisions --topic ${params.topic} --format json`.cwd(dir),
+        );
+        if (output === null) throw new Error("no output");
         const parsed = JSON.parse(output);
         sections.push(formatDecisions(parsed.decisions ?? []));
       } catch {

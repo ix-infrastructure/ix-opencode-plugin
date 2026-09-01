@@ -6,6 +6,7 @@
  */
 
 import { $ } from "bun";
+import { safeRun } from "../runtime/cli.ts";
 import { callRuntime } from "../runtime/client.ts";
 
 export const name = "ix-map";
@@ -83,7 +84,10 @@ async function fetchSubsystems(dir: string, scope?: string): Promise<string> {
       ? ["ix", "subsystems", scope, "--format", "json"]
       : ["ix", "subsystems", "--format", "json"];
 
-    const output = await $`${args}`.cwd(dir).text();
+    // `ix subsystems <region>` exits 1 for a region it cannot resolve while
+    // still emitting the record (Ix#538), so keep stdout rather than throwing.
+    const output = await safeRun($`${args}`.cwd(dir));
+    if (output === null) throw new Error("ix subsystems produced no output");
     const parsed = JSON.parse(output);
 
     const systems: {
@@ -132,7 +136,8 @@ async function fetchSubsystems(dir: string, scope?: string): Promise<string> {
 
 async function fetchSubsystemList(dir: string): Promise<string> {
   try {
-    const output = await $`ix subsystems --list --format json`.cwd(dir).text();
+    const output = await safeRun($`ix subsystems --list --format json`.cwd(dir));
+    if (output === null) throw new Error("no output");
     const parsed = JSON.parse(output);
     const names: string[] = parsed.names ?? parsed.list ?? [];
     if (names.length === 0) return "";
@@ -144,7 +149,8 @@ async function fetchSubsystemList(dir: string): Promise<string> {
 
 async function fetchStats(dir: string): Promise<string> {
   try {
-    const output = await $`ix stats --format json`.cwd(dir).text();
+    const output = await safeRun($`ix stats --format json`.cwd(dir));
+    if (output === null) throw new Error("no output");
     const parsed = JSON.parse(output);
 
     const parts: string[] = [];

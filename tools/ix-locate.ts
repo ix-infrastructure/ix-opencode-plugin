@@ -7,6 +7,7 @@
  */
 
 import { $ } from "bun";
+import { runIx, failureDetail } from "../runtime/cli.ts";
 import { tryLlm } from "../runtime/llm.ts";
 
 export const name = "ix-locate";
@@ -63,13 +64,9 @@ export async function execute(params: Params, context: Context): Promise<string>
   if (params.path) args.push("--path", params.path);
   if (params.language) args.push("--language", params.language);
 
-  let output: string;
-  try {
-    output = await $`${args}`.cwd(dir).text();
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return unavailable(params.pattern, msg);
-  }
+  const run = await runIx($`${args}`.cwd(dir));
+  if (!run?.stdout.trim()) return unavailable(params.pattern, failureDetail(run));
+  const output = run.stdout;
 
   let hits: {
     path?: string;
