@@ -235,3 +235,127 @@ describe.skipIf(!LIVE)("LiveIxCli", () => {
     expect(output).not.toContain("ix unavailable");
   });
 });
+
+// ─── NonZeroExitDiagnostics (Ix#539) ─────────────────────────────────────────
+//
+// Several `ix` commands exit 1 to mean "you asked for something that does not
+// exist" while still printing a useful JSON body, and `locate` is about to join
+// them. Bun's `$` throws on a non-zero exit and `.text()` discards stdout along
+// with it, so those diagnostics vanished and the tool fell back to a generic
+// "Not found in graph" — losing the guidance ix had actually supplied.
+//
+// These run in a CHILD process. Bun's shell resolves binaries from the real
+// process PATH: neither mutating `process.env.PATH` nor `$.env({PATH})` /
+// `.env({PATH})` redirects it, so an in-process stub is silently ignored and
+// the test would exercise the developer's real `ix` against their real graph.
+// A child process with its own PATH is the only way to stub it, and it has the
+// side benefit of covering the actual spawn path.
+
+import { mkdtempSync, writeFileSync, chmodSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
+
+const TOOL_PATH = path.resolve(import.meta.dir, "../tools/ix-docs-tool.ts");
+
+async function runToolWithStubIx(stubScript: string | null): Promise<string> {
+  const dir = mkdtempSync(path.join(tmpdir(), "ix-stub-"));
+  try {
+    if (stubScript !== null) {
+      const bin = path.join(dir, "ix");
+      writeFileSync(bin, `#!/bin/sh\n${stubScript}\n`);
+      chmodSync(bin, 0o755);
+    }
+
+    const runner = path.join(dir, "runner.ts");
+    writeFileSync(
+      runner,
+      `import * as tool from ${JSON.stringify(TOOL_PATH)};\n` +
+      `const out = await tool.execute({ target: "SomeSymbol", depth: "brief" }, { directory: ${JSON.stringify(dir)} });\n` +
+      `process.stdout.write(out);\n`,
+    );
+
+    // PATH is exactly the stub dir plus the system dirs `sh` needs, so the real
+    // `ix` cannot be reached even if one is installed.
+    // process.execPath, not "bun": the restricted PATH below deliberately does
+    // not contain bun's own directory.
+    const proc = Bun.spawn([process.execPath, runner], {
+      env: { ...process.env, PATH: `${dir}${path.delimiter}/usr/bin${path.delimiter}/bin` },
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+    const output = await new Response(proc.stdout).text();
+    await proc.exited;
+    return output;
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+describe("NonZeroExitDiagnostics", () => {
+  test("keeps the JSON body when ix exits non-zero", async () => {
+    const output = await runToolWithStubIx(`
+case "$1" in
+  locate)   echo '{"resolvedTarget":null,"resolutionMode":"none","diagnostics":["No graph entity found."]}'; exit 1 ;;
+  overview) echo '{"summary":"Overview body retained."}'; exit 1 ;;
+  *)        echo '{}'; exit 1 ;;
+esac`);
+
+    // The generic fallback would mean both payloads were thrown away.
+    expect(output).not.toContain("**Not found in graph.**");
+    expect(output).toContain("Overview body retained.");
+  });
+
+  test("still reports not-found when ix exits non-zero with no output", async () => {
+    const output = await runToolWithStubIx("exit 1");
+    expect(output).toContain("**Not found in graph.**");
+  });
+
+  test("still reports not-found when ix is absent entirely", async () => {
+    const output = await runToolWithStubIx(null);
+    expect(output).toContain("**Not found in graph.**");
+  });
+});
+
+// ─── RuntimeClientTimers ─────────────────────────────────────────────────────
+//
+// `callRuntime` cleared its abort timer only after a successful fetch, so when
+// the runtime was unreachable — the normal case on a machine without it, which
+// is exactly why the tools have a CLI fallback — the timer stayed pending for
+// its full 5s. A pending timer keeps the event loop alive, so the host process
+// hung for five seconds at exit on every single call. `isRuntimeAvailable`
+// never captured its timer at all.
+//
+// Invisible in-process (the call itself returns in ~20ms); only the exit is
+// delayed. So this measures how long a child takes to *exit* after the call
+// resolves.
+
+test("runtime client does not hold the process open after an unreachable call", async () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "ix-timer-"));
+  try {
+    const runner = path.join(dir, "runner.ts");
+    const client = path.resolve(import.meta.dir, "../runtime/client.ts");
+    writeFileSync(
+      runner,
+      `const client = await import(${JSON.stringify(client)});\n` +
+      // Port 9 (discard) refuses immediately, so any delay is the leaked timer.
+      `await client.callRuntime("/v2/ix_query", {}, { dir: ${JSON.stringify(dir)} });\n` +
+      `await client.isRuntimeAvailable();\n`,
+    );
+
+    const started = Date.now();
+    const proc = Bun.spawn([process.execPath, runner], {
+      env: { ...process.env, IX_RUNTIME_URL: "http://127.0.0.1:9" },
+      stdout: "ignore",
+      stderr: "ignore",
+    });
+    await proc.exited;
+    const elapsed = Date.now() - started;
+
+    // Was ~5000ms (callRuntime) + ~2000ms (isRuntimeAvailable) before the fix.
+    // A generous ceiling still separates "exits promptly" from "waits out a
+    // 5s timer", without being flaky on a slow runner.
+    expect(elapsed).toBeLessThan(3000);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}, 20_000);

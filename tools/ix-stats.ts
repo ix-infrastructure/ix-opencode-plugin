@@ -7,6 +7,7 @@
  */
 
 import { $ } from "bun";
+import { tryLlm } from "../runtime/llm.ts";
 
 export const name = "ix-stats";
 export const description =
@@ -23,6 +24,18 @@ type Context = { directory: string; worktree?: string };
 
 export async function execute(_params: Params, context: Context): Promise<string> {
   const dir = context.worktree ?? context.directory;
+
+  // `ix stats --format llm` emits the same counts this tool rebuilds by hand,
+  // in two lines instead of a bullet list. Returns null on an older CLI, so the
+  // JSON path below is unchanged there.
+  const fast = await tryLlm(["stats"], dir);
+  // ...except on an empty graph, where the JSON path says something the records
+  // do not: "run `ix map` to index the codebase". That is the most useful line
+  // this tool emits and it is worth one extra call in the rare case to keep it.
+  // A substring check, not a parse — the fast-path never interprets its output.
+  if (fast && !fast.includes("total=0")) {
+    return `## ix-stats\n\n${fast}`;
+  }
 
   let output: string;
   try {

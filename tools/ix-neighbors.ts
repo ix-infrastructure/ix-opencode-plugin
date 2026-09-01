@@ -6,6 +6,7 @@
  */
 
 import { $ } from "bun";
+import { tryLlm } from "../runtime/llm.ts";
 import { callRuntime } from "../runtime/client.ts";
 
 export const name = "ix-neighbors";
@@ -104,6 +105,19 @@ async function fetchSection(
   limit: number,
   depth?: number
 ): Promise<string> {
+  // One section per direction, so the fast-path is per section too: a mixed
+  // result (llm for callers, JSON-rendered for depends) is fine, because each
+  // section is independently headed.
+  const llmArgs =
+    direction === "depends" && depth !== undefined
+      ? ["depends", symbol, "--depth", String(depth)]
+      : [direction, symbol, "--limit", String(limit)];
+  const fast = await tryLlm(llmArgs, dir);
+  // Keep the section label the JSON path emits: these are stacked under one
+  // `## ix-neighbors` header, so an unlabelled block would leave the model
+  // unable to tell callers from callees.
+  if (fast) return `**${capitalize(direction)}:**\n${fast}\n`;
+
   try {
     let output: string;
     if (direction === "depends" && depth !== undefined) {

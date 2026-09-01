@@ -235,7 +235,7 @@ The Ix graph has been rebuilt. Graph data is now current.
 **ix CLI not found.** Install Ix to enable graph-aware features.
 
 command -v ix   # check if installed
-ix connect      # connect to workspace
+ix docker start # start the local backend
 ix map          # build initial graph
 ```
 

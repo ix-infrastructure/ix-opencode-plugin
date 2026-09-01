@@ -6,6 +6,7 @@
  */
 
 import { $ } from "bun";
+import { tryLlm } from "../runtime/llm.ts";
 
 export const name = "ix-inventory";
 export const description =
@@ -38,6 +39,9 @@ type Context = { directory: string; worktree?: string };
 export async function execute(params: Params, context: Context): Promise<string> {
   const dir = context.worktree ?? context.directory;
   const kind = params.kind ?? "file";
+
+  const fast = await tryLlm(["inventory", "--kind", kind, "--path", params.path], dir);
+  if (fast) return `## ix-inventory: ${params.path}\n\n${fast}`;
 
   let output: string;
   try {

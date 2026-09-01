@@ -7,6 +7,7 @@
  */
 
 import { $ } from "bun";
+import { tryLlm } from "../runtime/llm.ts";
 
 export const name = "ix-subsystems";
 export const description =
@@ -23,6 +24,9 @@ type Context = { directory: string; worktree?: string };
 
 export async function execute(_params: Params, context: Context): Promise<string> {
   const dir = context.worktree ?? context.directory;
+
+  const fast = await tryLlm(["subsystems"], dir);
+  if (fast) return `## ix-subsystems\n\n${fast}`;
 
   let output: string;
   try {
