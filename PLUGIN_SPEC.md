@@ -96,7 +96,7 @@ ix-opencode-plugin/
 | `ix-map` | Architectural map + subsystem overview | `ix map <scope>` CLI |
 | `ix-ingest` | Graph status + refresh trigger | `ix status` / `ix map` CLI |
 | `ix-history` | Revision/decisions/bugs | `ix history` CLI (Pro only) |
-| `ix-docs-tool` | Context summaries | `ix docs <target>` CLI |
+| `ix-docs-tool` | Context summaries | `POST /v2/ix_query` mode `"docs"` (no CLI equivalent) |
 
 ### Hooks (5 current via `ix-plugin.ts`)
 
@@ -191,7 +191,7 @@ OpenCode's plugin system provides:
 | Architectural map | `ix-map` tool → `ix map` CLI | `POST /v2/ix_query` mode `"understand"` |
 | Ingest/refresh | `ix-ingest` tool → `ix map` CLI | `POST /v2/ingest/map` |
 | Pre-edit gate | `ix-pre-edit` hook → `ix-impact` tool | `POST /v2/ix_decide` |
-| Context summaries | `ix-docs-tool` → `ix docs` CLI | `POST /v2/ix_query` mode `"docs"` |
+| Context summaries | `ix-docs-tool` (runtime only) | `POST /v2/ix_query` mode `"docs"` |
 | All seven skills | `ix` CLI via commands | `POST /v2/ix_query` appropriate mode |
 | Text/semantic search | **Not available** (missing tool) | `POST /v2/ix_query` mode `"locate"` text search |
 | Architecture smells | **Not available** (missing tool) | `POST /v2/insights/derive` type `"smells"` |

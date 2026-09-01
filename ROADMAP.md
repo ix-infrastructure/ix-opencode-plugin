@@ -70,7 +70,7 @@ When a platform mechanism is unavailable, mark it explicitly as **Unsupported** 
 Read all seven tool files in `tools/` and document the exact `ix` CLI commands each calls, along with the output parsing logic.
 
 **Current State Context:**
-Seven tools: `ix-query.ts` (`ix locate`), `ix-neighbors.ts` (`ix callers/callees/depends/imports`), `ix-impact.ts` (`ix impact`), `ix-map.ts` (`ix map`), `ix-ingest.ts` (`ix status` + `ix map`), `ix-history.ts` (`ix history`, Pro only), `ix-docs-tool.ts` (`ix docs`). All call through `base.ts`. Tools return strings (not JSON objects — confirmed OpenCode constraint).
+Seven tools: `ix-query.ts` (`ix locate`), `ix-neighbors.ts` (`ix callers/callees/depends/imports`), `ix-impact.ts` (`ix impact`), `ix-map.ts` (`ix map`), `ix-ingest.ts` (`ix status` + `ix map`), `ix-history.ts` (`ix history`, Pro only), `ix-docs-tool.ts` (runtime `/v2/ix_query` mode `"docs"` — no CLI equivalent). All call through `base.ts`. Tools return strings (not JSON objects — confirmed OpenCode constraint).
 
 **Implementation Notes:**
 Read each tool file. Document CLI args, output parsing, error handling, and string return format. Note which tools use `--json` flag vs raw text parsing.
