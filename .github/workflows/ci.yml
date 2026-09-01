@@ -19,8 +19,10 @@ jobs:
   # This is a Bun project (package.json `test` = `bun test`), so CI installs
   # the Bun toolchain rather than Node. Bun executes the TypeScript test files
   # directly — there is no separate build/typecheck step (no build script and
-  # no tsconfig in the repo). `bun test` skips the @live suite unless
+  # no tsconfig in the repo). `bun test` skips the LiveIxCli suite unless
   # IX_LIVE_TESTS=1 is set, so CI runs the offline contract/fallback tests.
+  # The live suite needs a real `ix` on PATH and a reachable backend, neither
+  # of which this runner has, so it stays opt-in (`bun run test:live`).
   test:
     name: Test (bun)
     runs-on: ubuntu-latest

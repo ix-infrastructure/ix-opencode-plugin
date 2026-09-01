@@ -8,8 +8,8 @@
  * 2. All tools return strings (never throw) when ix is unavailable
  * 3. Tool parameter schemas are valid JSON Schema objects
  *
- * Tests that require a live OpenCode session or ix CLI are marked @live
- * and skipped in CI unless IX_LIVE_TESTS=1 is set.
+ * Tests that require a live ix CLI live in the `LiveIxCli` block at the bottom
+ * and are skipped unless IX_LIVE_TESTS=1 is set (`bun run test:live`).
  */
 
 import { describe, test, expect } from "bun:test";
@@ -181,6 +181,60 @@ describe("PluginHookContract", () => {
   });
 });
 
+// ─── LiveIxCli (@live) ───────────────────────────────────────────────────────
+//
+// Every test above drives the tools at a directory where `ix` cannot succeed,
+// so they only ever prove the *fallback* path: that a tool returns a string
+// rather than throwing. Nothing exercised a successful `ix` invocation, which
+// means a regression in argument shape, output parsing or exit-code handling
+// would pass the whole suite (#18).
+//
+// These are opt-in because they need a real `ix` on PATH and a reachable
+// backend. Enable with `bun run test:live` (IX_LIVE_TESTS=1).
+//
+// The load-bearing assertion is `not.toContain("ix unavailable")` — that string
+// is exactly what every tool emits when the CLI call fails, so asserting its
+// absence is what distinguishes a real success from the fallback the offline
+// tests already cover.
+
+const LIVE = Boolean(process.env.IX_LIVE_TESTS);
+const LIVE_CTX = { directory: process.cwd() };
+
+describe.skipIf(!LIVE)("LiveIxCli", () => {
+  test("ix-stats reaches the CLI and renders a real report", async () => {
+    const output = await ixStats.execute({}, LIVE_CTX);
+
+    expect(typeof output).toBe("string");
+    expect(output).toContain("## ix-stats");
+    expect(output).not.toContain("ix unavailable");
+    expect(output).not.toContain("Failed to parse output");
+  });
+
+  test("ix-health reaches the CLI", async () => {
+    const output = await ixHealth.execute({}, LIVE_CTX);
+
+    expect(typeof output).toBe("string");
+    // ix-health has its own marker -- it reports `Status: UNAVAILABLE` rather
+    // than the `ix unavailable` string the other tools use. Asserting the wrong
+    // one here made this test pass with no `ix` on PATH at all.
+    expect(output).not.toContain("Status: UNAVAILABLE");
+    expect(output).not.toContain("ix CLI not found");
+  });
+
+  test("a miss is a real answer, not the unavailable fallback", async () => {
+    // A symbol that cannot exist. `ix` answers "no match" and exits without
+    // error, so the tool must render that answer rather than reporting the CLI
+    // as unavailable -- the two are easy to conflate and only a live run
+    // separates them.
+    const output = await ixLocate.execute(
+      { symbol: "IxDefinitelyMissingSymbol_99999" },
+      LIVE_CTX,
+    );
+
+    expect(typeof output).toBe("string");
+    expect(output).not.toContain("ix unavailable");
+  });
+});
 
 // ─── NonZeroExitDiagnostics (Ix#539) ─────────────────────────────────────────
 //
