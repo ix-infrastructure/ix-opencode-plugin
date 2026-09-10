@@ -1,3 +1,5 @@
+// Copyright 2026 Ix Infrastructure Inc.
+
 /**
  * ix-plugin.ts — OpenCode plugin entry point (v1.4.2 format)
  *

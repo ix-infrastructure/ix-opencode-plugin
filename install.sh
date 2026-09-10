@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Copyright 2026 Ix Infrastructure Inc.
+
 # install.sh — ix-opencode-plugin installer
 #
 # Usage:

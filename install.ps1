@@ -1,3 +1,5 @@
+# Copyright 2026 Ix Infrastructure Inc.
+
 # install.ps1 — ix-opencode-plugin installer for Windows
 #
 # Usage:
