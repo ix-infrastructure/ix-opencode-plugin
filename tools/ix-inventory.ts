@@ -1,3 +1,5 @@
+// Copyright 2026 Ix Infrastructure INC
+
 /**
  * ix-inventory — enumerate files or symbols within a path scope
  *

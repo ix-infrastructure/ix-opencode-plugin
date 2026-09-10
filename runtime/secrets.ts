@@ -1,3 +1,5 @@
+// Copyright 2026 Ix Infrastructure INC
+
 /**
  * Secret detection and redaction for Ix runtime payloads.
  *

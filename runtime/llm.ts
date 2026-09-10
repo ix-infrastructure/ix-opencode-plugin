@@ -1,3 +1,5 @@
+// Copyright 2026 Ix Infrastructure INC
+
 /**
  * ix `--format llm` fast-path, gated on the installed CLI's version.
  *
