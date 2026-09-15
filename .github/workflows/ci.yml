@@ -30,6 +30,14 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+
+      # Every source file must carry the copyright line. In this job rather than
+      # a workflow of its own: the ruleset requires exactly one status check,
+      # `CI Passed`, and `test` is in its `needs` — a check in any other
+      # workflow reports on the PR and gates nothing. Toolchain-free (stdlib
+      # python3 is preinstalled; the script shells out only to git).
+      - name: Copyright headers on every source file
+        run: python3 .github/scripts/copyright-headers.py
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
           bun-version: latest
