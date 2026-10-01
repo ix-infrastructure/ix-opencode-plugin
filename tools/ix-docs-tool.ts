@@ -9,6 +9,7 @@
  */
 
 import { safeRun } from "../runtime/cli.ts";
+import { formatIxError, parseIxError } from "../runtime/ix-error.ts";
 
 export const name = "ix-docs-tool";
 export const description =
@@ -66,6 +67,15 @@ export async function execute(
       "",
       "Try: `ix map` to refresh, or `ix locate` to check the exact name.",
     ].join("\n");
+  }
+
+  // Both lookups answered with an error record (unmapped workspace, empty
+  // graph): there is nothing to document, and the record says why.
+  const locateErr = parseIxError(locateOut);
+  const overviewErr = parseIxError(overviewOut);
+  if ((locateErr || !locateOut) && (overviewErr || !overviewOut)) {
+    const ixErr = overviewErr ?? locateErr;
+    if (ixErr) return formatIxError(`## ix-docs-tool: ${params.target}`, ixErr);
   }
 
   const sections: string[] = [

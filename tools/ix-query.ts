@@ -8,6 +8,7 @@
  */
 
 import { runIx, failureDetail } from "../runtime/cli.ts";
+import { formatIxError, parseIxError } from "../runtime/ix-error.ts";
 
 export const name = "ix-query";
 export const description =
@@ -63,6 +64,10 @@ export async function execute(
     return fallbackUnavailable("ix-query", params.symbol, failureDetail(locateRun));
   }
   const locateOutput = locateRun.stdout;
+  // An error record has no matches, and reading it as a result reported "No
+  // matches found" for a project Ix could not search at all.
+  const locateErr = parseIxError(locateOutput);
+  if (locateErr) return formatIxError(`## ix-query: ${params.symbol}`, locateErr);
 
   let locateResult: { results?: { name: string; kind: string; file: string }[] };
   try {
@@ -85,6 +90,7 @@ export async function execute(
   const explainRun = await runIx(["explain", entity.name, "--format", "json"], dir);
   if (!explainRun?.stdout.trim()) return formatLocateOnly(params.symbol, results);
   explainOutput = explainRun.stdout;
+  if (parseIxError(explainOutput)) return formatLocateOnly(params.symbol, results);
 
   let explainResult: {
     name?: string;

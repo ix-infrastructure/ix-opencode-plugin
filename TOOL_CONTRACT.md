@@ -9,8 +9,9 @@ API reference for all 7 Ix tools. Each tool calls the `ix` CLI and returns a for
 1. **Input:** structured JSON parameters validated by OpenCode's parameter schema
 2. **Output:** formatted markdown string — never raw JSON, never structured objects
 3. **Fallback:** if `ix` is unavailable, return a helpful error with recovery steps rather than throwing
-4. **Depth scaling:** heavier analysis phases run only when lighter phases indicate they're needed
-5. **Directory:** all `ix` CLI calls run in `context.worktree ?? context.directory`
+4. **Ix error records:** since Ix v0.12.0 a read that cannot answer prints an error record on stdout and exits 1 — `{"error":"<code>","message":"…"}` in JSON, `error code=<code> message="…"` in llm. Tools recognise it with `runtime/ix-error.ts` and return **`Ix returned an error`** with the code, the message and Ix's own fix, never a "nothing found" or "clean" result. For `workspace_not_mapped`, or a `graph.status` of `empty`/`degraded`, the text says the project is not mapped and to run `ix map` from the project root (or `ix-ingest` with `refresh: true`). This is distinct from rule 3: there Ix said nothing (not installed, timed out, no output) and the tool reports **`ix unavailable`**.
+5. **Depth scaling:** heavier analysis phases run only when lighter phases indicate they're needed
+6. **Directory:** all `ix` CLI calls run in `context.worktree ?? context.directory`
 
 The string-only output constraint comes from the OpenCode runtime. Returning objects from tools has caused runtime issues in practice.
 

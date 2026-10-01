@@ -9,6 +9,7 @@
 
 import { runIx, safeRun, failureDetail } from "../runtime/cli.ts";
 import { resolveGitRoot, isUnmappableRoot } from "../runtime/automap.ts";
+import { formatIxError, parseIxError } from "../runtime/ix-error.ts";
 
 // An explicit rebuild can take minutes on a large repo; it is still bounded.
 const REFRESH_TIMEOUT_MS = 10 * 60_000;
@@ -65,6 +66,8 @@ export async function execute(
   const statusRun = await safeRun(["status", "--format", "json"], dir);
   if (statusRun === null) return await probeStatus(dir);
   const statusOutput = statusRun;
+  const statusErr = parseIxError(statusOutput);
+  if (statusErr) return formatIxError("## ix-ingest: status", statusErr);
 
   let status: {
     connected?: boolean;
@@ -126,6 +129,8 @@ async function probeStatus(dir: string): Promise<string> {
   try {
     const output = await safeRun(["subsystems", "--list", "--format", "json"], dir);
     if (output === null) throw new Error("no output");
+    const ixErr = parseIxError(output);
+    if (ixErr) return formatIxError("## ix-ingest: status", ixErr);
     const parsed = JSON.parse(output);
     const names: string[] = parsed.names ?? parsed.list ?? [];
 
