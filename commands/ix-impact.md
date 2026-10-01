@@ -57,9 +57,9 @@ Cross-reference callers + dependents + importers to identify:
 
 ## Phase 4 — Known bugs in blast radius **[Pro]**
 
-If Pro is available and `openBugs` from the briefing is non-empty, check for bugs affecting this target:
+If Pro is available and `openBugs` from the briefing is non-empty, check for bugs affecting this target (Ix Pro only):
 ```bash
-ix bugs --format llm
+ix bug list --format text
 ```
 Cross-reference open bugs against the direct callers and dependents identified in Phase 2. Any open bug touching the blast radius escalates the risk verdict — flag it explicitly in the output.
 

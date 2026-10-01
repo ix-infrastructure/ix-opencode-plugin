@@ -81,13 +81,13 @@ This is the primary mechanism for changing OpenCode's default behavior. It doesn
 
 ### `plugins/ix-plugin.ts` — entry point
 
-Registers all 7 tools and 5 hooks with the OpenCode runtime. Also runs `onInit` to check graph availability and trigger initial ingest if the graph is empty.
+Registers all 17 tools and the `tool.execute.after` hook with the OpenCode runtime. It runs no `ix` command at startup.
 
 Key design decisions:
 - Tools are imported from `tools/` and wrapped with the OpenCode tool interface
 - All tool `execute` functions are async and return strings (see Tool contract below)
 - Hooks are advisory, not blocking — they inject context but always allow the action
-- The post-edit hook fires `ix map --silent` as fire-and-forget (non-blocking)
+- The post-edit hook requests a guarded refresh (`runtime/automap.ts`): only for a git repo whose root is not `$HOME`, only if `ix status --root <root>` reports `graphCompleted: true`, at most once per root per `IX_MAP_DEBOUNCE_SECONDS` (default 300). It then runs `ix map <root> --silent` detached, with `IX_AUTO_MAP=1`. It never maps a file and never creates a workspace.
 
 ### `tools/*.ts` — CLI-backed tools
 
@@ -236,13 +236,12 @@ When OpenCode adds a proper pre-task hook, the briefing logic can move there. Fo
 
 ## Bun runtime requirement
 
-**Bun is required.** All tool files use `import { $ } from "bun"` for shell execution. The `$` tagged template literal is Bun's shell API and has no Node.js equivalent. The plugin cannot run on plain Node.js — Bun must be the runtime.
+**Bun is required.** Every `ix` call goes through `Bun.spawn` (in `runtime/cli.ts`). The plugin cannot run on plain Node.js — Bun must be the runtime.
 
 Bun-specific APIs used:
-- `$\`command\`` — shell execution with structured result and `.text()` / `.quiet()` methods
-- Standard `fetch` (Bun ships fetch natively; used in `runtime/client.ts`)
+- `Bun.spawn` — every `ix` call goes through `runtime/cli.ts`, which kills it at a deadline (`IX_CLI_TIMEOUT_MS`, default 60s)
 
-No Bun-specific APIs beyond these are required. `import { $ } from "bun"` is the only non-portable call.
+`Bun.which` (to find `ix` on PATH) is the only other Bun-specific API used.
 
 ## MCP support
 
@@ -254,12 +253,6 @@ If OpenCode adds MCP support, the implementation path is:
 - This would mirror the `ix-cursor-plugin/mcp/` structure
 
 Until then, all tools are registered as native OpenCode plugin tools via `plugins/ix-plugin.ts`.
-
-## Ix Core Runtime client
-
-`runtime/client.ts` provides `callRuntime()` and `isRuntimeAvailable()` for when the Ix Core Runtime API comes online (target: 2026-07-15 local alpha). The `ix-decide` tool uses this client today, falling back to `ix impact` when the runtime is unreachable. All other tools still call the CLI directly; they will migrate to the runtime client in Phase 2.
-
-The runtime base URL defaults to `http://127.0.0.1:7743` and can be overridden via the `IX_RUNTIME_URL` environment variable.
 
 ## Phase 2 roadmap
 

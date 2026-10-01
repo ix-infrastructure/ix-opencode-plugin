@@ -152,7 +152,7 @@ Eight slash commands with phased reasoning — graph first, source reads only wh
 | `ix-health` | CLI and graph availability check |
 | `ix-smells` | Architecture smell detection |
 
-All tools try the [Ix Core Runtime](../IX_PLUGIN_OVERHAUL_SPEC.md) HTTP API first and fall back to the `ix` CLI when the runtime is unavailable.
+All tools call the `ix` CLI, with a timeout on every call.
 
 ## Hooks
 

@@ -344,8 +344,6 @@ Handles payment processing, subscription management, and invoice generation. Dep
 
 **CLI:** `ix text <pattern> --limit <n> [--path P] [--language L] --format json`
 
-**Runtime:** `POST /v2/ix_query` mode `"locate"` → `preview_markdown` shortcut
-
 ---
 
 ### `ix-explain`
@@ -355,8 +353,6 @@ Handles payment processing, subscription management, and invoice generation. Dep
 **Parameters:** `symbol` (required)
 
 **CLI:** `ix explain <symbol> --format json`
-
-**Runtime:** `POST /v2/ix_query` mode `"investigate"` → `preview_markdown` shortcut
 
 ---
 
@@ -368,8 +364,6 @@ Handles payment processing, subscription management, and invoice generation. Dep
 
 **CLI:** `ix rank --by <by> --kind <kind> --top <n> [--path P] --format json`
 
-**Runtime:** `POST /v2/insights/derive` type `"centrality"` → `preview_markdown` shortcut
-
 ---
 
 ### `ix-stats`
@@ -379,8 +373,6 @@ Handles payment processing, subscription management, and invoice generation. Dep
 **Parameters:** none
 
 **CLI:** `ix stats --format json`
-
-**Runtime:** `GET /v2/status` → `preview_markdown` shortcut
 
 ---
 
@@ -392,8 +384,6 @@ Handles payment processing, subscription management, and invoice generation. Dep
 
 **CLI:** `ix subsystems --format json`
 
-**Runtime:** `POST /v2/graph/query` op `"subgraph"` → `preview_markdown` shortcut
-
 ---
 
 ### `ix-inventory`
@@ -403,8 +393,6 @@ Handles payment processing, subscription management, and invoice generation. Dep
 **Parameters:** `path` (required), `kind` (default `file`; `class`, `function`, `interface`, `module`)
 
 **CLI:** `ix inventory --kind <kind> --path <path> --format json`
-
-**Runtime:** `POST /v2/graph/query` op `"neighbors"` → `preview_markdown` shortcut
 
 ---
 
@@ -416,8 +404,6 @@ Handles payment processing, subscription management, and invoice generation. Dep
 
 **CLI:** `ix trace <symbol> [--to <target>] --format json`
 
-**Runtime:** `POST /v2/graph/query` op `"paths"` → `preview_markdown` shortcut
-
 ---
 
 ### `ix-decide`
@@ -426,21 +412,17 @@ Handles payment processing, subscription management, and invoice generation. Dep
 
 **Parameters:** `touched_paths` (required array), `intent` (default `edit`), `risk_tolerance` (default `medium`)
 
-**CLI fallback:** `ix impact <path>` per touched file — synthesizes a conservative verdict from impact scores when runtime unavailable.
-
-**Runtime:** `POST /v2/ix_decide` → formatted verdict string (no `preview_markdown` — full response parsed)
+**CLI:** `ix impact <path> --format json` per touched file — synthesizes a conservative verdict from impact scores.
 
 ---
 
 ### `ix-health`
 
-**Purpose:** Check CLI availability, graph index state, and runtime reachability.
+**Purpose:** Check CLI availability and graph index state.
 
 **Parameters:** none
 
 **CLI:** `ix status --format json` (with `ix --version` fallback)
-
-**Runtime:** `GET /v2/status` — runtime reachability reported in output
 
 ---
 
@@ -448,21 +430,9 @@ Handles payment processing, subscription management, and invoice generation. Dep
 
 **Purpose:** Detect architecture smells — orphan files, high coupling, low cohesion, dead code, and other structural issues.
 
-**Parameters:** `path` (optional), `limit` (default 50, max 200)
+**Parameters:** `limit` (default 50, max 200). `ix smells` has no path filter; it always covers the whole workspace.
 
-**CLI:** `ix smells [--path P] --format json`
-
-**Runtime:** `POST /v2/insights/derive` type `"smells"` → `preview_markdown` shortcut
-
----
-
-## Runtime API routing
-
-All tools now try the Ix Core Runtime API first via `runtime/client.ts`. When the runtime returns a response with `preview_markdown`, that string is used directly as the tool output. If the runtime is unavailable (expected until the 2026-07-15 alpha), tools fall back to the ix CLI.
-
-The runtime base URL defaults to `http://127.0.0.1:7743` and can be overridden via the `IX_RUNTIME_URL` environment variable.
-
-Secret redaction is applied to all outbound payloads (via `runtime/secrets.ts`) and to all `preview_markdown` fields in responses.
+**CLI:** `ix smells --format json`
 
 ---
 
