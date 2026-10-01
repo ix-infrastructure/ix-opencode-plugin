@@ -413,7 +413,22 @@ Handles payment processing, subscription management, and invoice generation. Dep
 
 **Parameters:** `touched_paths` (required array), `intent` (default `edit`), `risk_tolerance` (default `medium`)
 
-**CLI:** `ix impact <path> --format json` per touched file — synthesizes a conservative verdict from impact scores.
+**CLI:** `ix impact <path> --format json` per touched file (first 5) — synthesizes a conservative verdict from `riskLevel` and the dependent counts under `summary` (`directImporters + directDependents + memberLevelCallers` for a file, `callers` for a function: the same total Ix's risk inference uses). Subsystems come from `propagationBuckets[].region`.
+
+**Fails closed.** ALLOW is only given when every touched path has a parsed impact record with a real risk level and dependent counts.
+
+| Situation | Verdict |
+|---|---|
+| any path `riskLevel: critical`, or total dependents ≥ 20 (×0.5 / ×2 for `risk_tolerance` low / high) | BLOCK |
+| `ix` not installed, timed out, or exited with nothing on stdout | REVIEW |
+| an Ix error record (`workspace_not_mapped`, `unresolved_target`, `ambiguous_target`, …) | REVIEW |
+| output that does not parse, or JSON without `riskLevel` / dependent counts | REVIEW |
+| `riskLevel: unknown` or a `graph` block whose status is not `ok` (Ix withholds risk on a hollow graph) | REVIEW |
+| more than 5 paths (the rest are not checked), or no paths | REVIEW |
+| any path `riskLevel: high` or `medium`, or total dependents ≥ 5 (scaled as above) | REVIEW |
+| every path assessed, all `low`, total dependents below the REVIEW threshold | ALLOW |
+
+BLOCK outranks the REVIEW rows: a critical path is BLOCK even if another path could not be assessed. A REVIEW for a path Ix could not assess lists that path, the reason, and Ix's own fix.
 
 ---
 
