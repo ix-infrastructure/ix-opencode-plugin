@@ -7,9 +7,7 @@
  * Runs `ix locate` + `ix explain` and returns a formatted markdown summary.
  */
 
-import { $ } from "bun";
 import { runIx, failureDetail } from "../runtime/cli.ts";
-import { callRuntime } from "../runtime/client.ts";
 
 export const name = "ix-query";
 export const description =
@@ -53,21 +51,14 @@ export async function execute(
 ): Promise<string> {
   const dir = context.worktree ?? context.directory;
 
-  // Try runtime API first — use preview_markdown when available
-  const target = [{ kind: "symbol", value: params.symbol }];
-  const rr = await callRuntime("/v2/ix_query", {
-    query: { mode: "investigate", targets: target, constraints: { max_raw_reads: 1 } },
-  }, { dir });
-  if (typeof rr?.preview_markdown === "string") return rr.preview_markdown;
-
   // Build locate args
-  const locateArgs = ["ix", "locate", params.symbol, "--format", "json"];
+  const locateArgs = ["locate", params.symbol, "--format", "json"];
   if (params.kind) locateArgs.push("--kind", params.kind);
   if (params.path) locateArgs.push("--path", params.path);
 
   let explainOutput = "";
 
-  const locateRun = await runIx($`${locateArgs}`.cwd(dir));
+  const locateRun = await runIx(locateArgs, dir);
   if (!locateRun?.stdout.trim()) {
     return fallbackUnavailable("ix-query", params.symbol, failureDetail(locateRun));
   }
@@ -91,7 +82,7 @@ export async function execute(
   // miss here degrades to the locate-only view rather than failing the tool --
   // but a body printed alongside a non-zero exit is still an answer worth
   // parsing, which a bare `.text()` would have discarded.
-  const explainRun = await runIx($`ix explain ${entity.name} --format json`.cwd(dir));
+  const explainRun = await runIx(["explain", entity.name, "--format", "json"], dir);
   if (!explainRun?.stdout.trim()) return formatLocateOnly(params.symbol, results);
   explainOutput = explainRun.stdout;
 

@@ -8,7 +8,6 @@
  * graph is indexed before running more expensive queries.
  */
 
-import { $ } from "bun";
 import { runIx, failureDetail } from "../runtime/cli.ts";
 import { tryLlm } from "../runtime/llm.ts";
 
@@ -40,7 +39,7 @@ export async function execute(_params: Params, context: Context): Promise<string
     return `## ix-stats\n\n${fast}`;
   }
 
-  const run = await runIx($`ix stats --format json`.cwd(dir));
+  const run = await runIx(["stats", "--format", "json"], dir);
   if (!run?.stdout.trim()) return unavailable(failureDetail(run));
   const output = run.stdout;
 

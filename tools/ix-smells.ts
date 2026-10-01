@@ -8,7 +8,6 @@
  * Use during architecture review or to find improvement candidates.
  */
 
-import { $ } from "bun";
 import { runIx, failureDetail } from "../runtime/cli.ts";
 import { tryLlm } from "../runtime/llm.ts";
 
@@ -19,10 +18,6 @@ export const description =
 export const parameters = {
   type: "object",
   properties: {
-    path: {
-      type: "string",
-      description: "Optional: restrict smell detection to a directory path prefix",
-    },
     limit: {
       type: "number",
       description: "Max results to return. Default: 50, max: 200",
@@ -32,8 +27,9 @@ export const parameters = {
   required: [],
 } as const;
 
+// `ix smells` has no path filter (no `--path` at any version): it always runs
+// over the whole workspace, so the tool takes no path either.
 type Params = {
-  path?: string;
   limit?: number;
 };
 
@@ -43,15 +39,10 @@ export async function execute(params: Params, context: Context): Promise<string>
   const dir = context.worktree ?? context.directory;
   const limit = Math.min(params.limit ?? 50, 200);
 
-  const llmArgs = ["smells"];
-  if (params.path) llmArgs.push("--path", params.path);
-  const fast = await tryLlm(llmArgs, dir);
+  const fast = await tryLlm(["smells"], dir);
   if (fast) return `## ix-smells\n\n${fast}`;
 
-  const args = ["ix", "smells", "--format", "json"];
-  if (params.path) args.push("--path", params.path);
-
-  const run = await runIx($`${args}`.cwd(dir));
+  const run = await runIx(["smells", "--format", "json"], dir);
   if (!run?.stdout.trim()) return unavailable(failureDetail(run));
   const output = run.stdout;
 
@@ -78,16 +69,14 @@ export async function execute(params: Params, context: Context): Promise<string>
   const candidates = allCandidates.slice(0, limit);
 
   if (candidates.length === 0) {
-    const scopeNote = params.path ? ` in \`${params.path}\`` : "";
-    return `## ix-smells\n\nNo code smells detected${scopeNote}. Architecture looks clean.`;
+    return `## ix-smells\n\nNo code smells detected. Architecture looks clean.`;
   }
 
-  const scopeNote = params.path ? ` in \`${params.path}\`` : "";
   const showing = candidates.length < total ? ` (showing ${candidates.length} of ${total})` : "";
   const lines = [
     "## ix-smells",
     "",
-    `**${total} smell${total === 1 ? "" : "s"} detected${scopeNote}**${showing}`,
+    `**${total} smell${total === 1 ? "" : "s"} detected**${showing}`,
     "",
   ];
 

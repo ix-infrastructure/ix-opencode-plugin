@@ -3,17 +3,11 @@
 /**
  * ix-decide — pre-edit policy gate
  *
- * Routes through the Ix Core Runtime `ix_decide` endpoint when the runtime is
- * available, returning a formal policy verdict (ALLOW / REVIEW / BLOCK) with
- * required actions and evidence.
- *
- * When the runtime is unavailable (expected until 2026-07-15 alpha), falls back
- * to running `ix impact` on each touched path and synthesizing a conservative verdict.
+ * Runs `ix impact` on each touched path and synthesizes a conservative policy
+ * verdict (ALLOW / REVIEW / BLOCK) with required actions and evidence.
  */
 
-import { $ } from "bun";
 import { safeRun } from "../runtime/cli.ts";
-import { callRuntime } from "../runtime/client.ts";
 
 export const name = "ix-decide";
 export const description =
@@ -56,57 +50,10 @@ export async function execute(params: Params, context: Context): Promise<string>
   const intent = params.intent ?? "edit";
   const riskTolerance = params.risk_tolerance ?? "medium";
 
-  // Try the runtime API first
-  const runtimeResult = await callRuntime(
-    "/v2/ix_decide",
-    {
-      proposal: {
-        intent,
-        touched_paths: params.touched_paths,
-        risk_tolerance: riskTolerance,
-      },
-    },
-    { dir }
-  );
-
-  if (runtimeResult) {
-    return formatRuntimeVerdict(params.touched_paths, runtimeResult);
-  }
-
-  // Runtime not available — fall back to ix impact on each path
-  return await fallbackImpactVerdict(params.touched_paths, intent, riskTolerance, dir);
+  return await impactVerdict(params.touched_paths, intent, riskTolerance, dir);
 }
 
-function formatRuntimeVerdict(
-  paths: string[],
-  result: Record<string, unknown>
-): string {
-  const decision = (result.decision as Record<string, unknown> | undefined) ?? {};
-  const verdict = String(decision.verdict ?? "REVIEW").toUpperCase();
-  const reason = String(decision.reason ?? "See impact data below.");
-  const requiredActions = (decision.required_actions as string[] | undefined) ?? [];
-  const impact = (result.impact as Record<string, unknown> | undefined) ?? {};
-
-  const lines = [
-    `## ix-decide: ${paths.length === 1 ? paths[0] : `${paths.length} files`}`,
-    "",
-    `**Verdict:** ${verdict}`,
-    `**Reason:** ${reason}`,
-  ];
-
-  if (impact.risk_level) lines.push(`**Risk:** ${String(impact.risk_level).toUpperCase()}`);
-  if (impact.direct_dependents !== undefined) lines.push(`**Direct dependents:** ${impact.direct_dependents}`);
-  if (impact.crosses_architectural_boundary) lines.push("⚠ **Crosses architectural boundary**");
-
-  if (requiredActions.length > 0) {
-    lines.push("", "**Required actions:**");
-    for (const action of requiredActions) lines.push(`- ${action}`);
-  }
-
-  return lines.join("\n");
-}
-
-async function fallbackImpactVerdict(
+async function impactVerdict(
   paths: string[],
   intent: string,
   riskTolerance: string,
@@ -125,7 +72,7 @@ async function fallbackImpactVerdict(
     // `safeRun`, not `.text()`: `ix impact` exits 1 for a path it cannot resolve
     // while still printing the record, and that record is what this loop is
     // here to read. A path with genuinely no output still lands as null below.
-    const out = await safeRun($`ix impact ${filePath} --format json`.cwd(dir));
+    const out = await safeRun(["impact", filePath, "--format", "json"], dir);
     try {
       impacts.push({ path: filePath, result: JSON.parse(out ?? "") as ImpactResult });
     } catch {
@@ -191,7 +138,7 @@ async function fallbackImpactVerdict(
     }
   }
 
-  lines.push("", "_[Runtime unavailable — verdict synthesized from ix impact fallback]_");
+  lines.push("", "_Verdict synthesized from `ix impact`._");
 
   return lines.join("\n");
 }

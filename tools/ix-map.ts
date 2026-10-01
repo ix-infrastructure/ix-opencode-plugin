@@ -7,9 +7,7 @@
  * Use for orientation before exploration or planning.
  */
 
-import { $ } from "bun";
 import { safeRun } from "../runtime/cli.ts";
-import { callRuntime } from "../runtime/client.ts";
 
 export const name = "ix-map";
 export const description =
@@ -49,16 +47,6 @@ export async function execute(
   const dir = context.worktree ?? context.directory;
   const includeStats = params.include_stats !== false;
 
-  // Try runtime API first — use preview_markdown when available
-  const rr = await callRuntime("/v2/ix_query", {
-    query: {
-      mode: "understand",
-      depth: "shallow",
-      targets: params.scope ? [{ kind: "path", value: params.scope }] : [],
-    },
-  }, { dir });
-  if (typeof rr?.preview_markdown === "string") return rr.preview_markdown;
-
   const fetches: Promise<string>[] = [
     fetchSubsystems(dir, params.scope),
     fetchSubsystemList(dir),
@@ -83,12 +71,12 @@ export async function execute(
 async function fetchSubsystems(dir: string, scope?: string): Promise<string> {
   try {
     const args = scope
-      ? ["ix", "subsystems", scope, "--format", "json"]
-      : ["ix", "subsystems", "--format", "json"];
+      ? ["subsystems", scope, "--format", "json"]
+      : ["subsystems", "--format", "json"];
 
     // `ix subsystems <region>` exits 1 for a region it cannot resolve while
     // still emitting the record (Ix#538), so keep stdout rather than throwing.
-    const output = await safeRun($`${args}`.cwd(dir));
+    const output = await safeRun(args, dir);
     if (output === null) throw new Error("ix subsystems produced no output");
     const parsed = JSON.parse(output);
 
@@ -138,7 +126,7 @@ async function fetchSubsystems(dir: string, scope?: string): Promise<string> {
 
 async function fetchSubsystemList(dir: string): Promise<string> {
   try {
-    const output = await safeRun($`ix subsystems --list --format json`.cwd(dir));
+    const output = await safeRun(["subsystems", "--list", "--format", "json"], dir);
     if (output === null) throw new Error("no output");
     const parsed = JSON.parse(output);
     const names: string[] = parsed.names ?? parsed.list ?? [];
@@ -151,7 +139,7 @@ async function fetchSubsystemList(dir: string): Promise<string> {
 
 async function fetchStats(dir: string): Promise<string> {
   try {
-    const output = await safeRun($`ix stats --format json`.cwd(dir));
+    const output = await safeRun(["stats", "--format", "json"], dir);
     if (output === null) throw new Error("no output");
     const parsed = JSON.parse(output);
 

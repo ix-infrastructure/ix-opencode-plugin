@@ -129,8 +129,10 @@ tools/                           — 17 TypeScript tool functions
   ix-smells.ts       — architecture smell detection
 
 runtime/
-  client.ts          — Ix Core Runtime HTTP client (v2 API; CLI fallback)
-  secrets.ts         — secret detection and redaction for API payloads
+  cli.ts             — runs `ix` with a timeout, keeping stdout on a non-zero exit
+  automap.ts         — the guarded, debounced post-edit `ix map <repo-root>`
+  llm.ts             — version-gated `--format llm` fast path
+  secrets.ts         — secret detection and redaction for tool output
 
 commands/
   ix-understand.md   — mental model slash command (graph only)

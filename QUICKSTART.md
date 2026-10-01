@@ -45,7 +45,7 @@ Then add to your project's `opencode.json`:
 }
 ```
 
-> **Note:** The `runtime/` directory must be copied — `tools/*.ts` imports the Ix Core Runtime client from `../runtime/client.ts`.
+> **Note:** The `runtime/` directory must be copied — `tools/*.ts` import the shared `ix` runner from `../runtime/cli.ts`.
 
 ### Option B — Global install
 
@@ -145,7 +145,6 @@ Expected output:
 **Status:** OK
 **CLI:** ix 2.1.0 — installed
 **Graph:** indexed (312 files)
-**Runtime (v2):** not available (expected until 2026-07-15)
 ```
 
 If you see `ix CLI not found`, verify `ix` is on your PATH:
@@ -191,17 +190,6 @@ Once installed, the plugin provides:
 | `ix-smells` | Architecture smell detection |
 
 You don't need to invoke tools explicitly — the hooks and `AGENTS.md` nudge OpenCode toward graph-first reasoning automatically.
-
----
-
-## Ix Core Runtime
-
-All tools try the [Ix Core Runtime](../IX_PLUGIN_OVERHAUL_SPEC.md) HTTP API before falling back to the `ix` CLI. The runtime is not yet deployed (local alpha target: 2026-07-15), so all tools currently operate in CLI mode. When the runtime is available at `http://127.0.0.1:7743`, tools automatically upgrade to richer API-backed responses with no configuration change.
-
-Override the runtime URL if needed:
-```bash
-IX_RUNTIME_URL=http://localhost:7743 opencode
-```
 
 ---
 

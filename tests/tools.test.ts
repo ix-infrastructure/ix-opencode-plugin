@@ -229,7 +229,7 @@ describe.skipIf(!LIVE)("LiveIxCli", () => {
     // as unavailable -- the two are easy to conflate and only a live run
     // separates them.
     const output = await ixLocate.execute(
-      { symbol: "IxDefinitelyMissingSymbol_99999" },
+      { pattern: "IxDefinitelyMissingSymbol_99999" },
       LIVE_CTX,
     );
 
@@ -253,20 +253,17 @@ describe.skipIf(!LIVE)("LiveIxCli", () => {
 // A child process with its own PATH is the only way to stub it, and it has the
 // side benefit of covering the actual spawn path.
 
-import { mkdtempSync, writeFileSync, chmodSync, rmSync } from "node:fs";
+import { mkdtempSync, writeFileSync, rmSync, readFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { writeFakeIx, fakePath } from "./fake-ix.ts";
 
 const TOOL_PATH = path.resolve(import.meta.dir, "../tools/ix-docs-tool.ts");
 
 async function runToolWithStubIx(stubScript: string | null): Promise<string> {
   const dir = mkdtempSync(path.join(tmpdir(), "ix-stub-"));
   try {
-    if (stubScript !== null) {
-      const bin = path.join(dir, "ix");
-      writeFileSync(bin, `#!/bin/sh\n${stubScript}\n`);
-      chmodSync(bin, 0o755);
-    }
+    if (stubScript !== null) writeFakeIx(dir, stubScript);
 
     const runner = path.join(dir, "runner.ts");
     writeFileSync(
@@ -281,7 +278,7 @@ async function runToolWithStubIx(stubScript: string | null): Promise<string> {
     // process.execPath, not "bun": the restricted PATH below deliberately does
     // not contain bun's own directory.
     const proc = Bun.spawn([process.execPath, runner], {
-      env: { ...process.env, PATH: `${dir}${path.delimiter}/usr/bin${path.delimiter}/bin` },
+      env: { ...process.env, PATH: fakePath(dir) },
       stdout: "pipe",
       stderr: "pipe",
     });
@@ -318,45 +315,40 @@ esac`);
   });
 });
 
-// ─── RuntimeClientTimers ─────────────────────────────────────────────────────
+// ─── IxTimeouts ──────────────────────────────────────────────────────────────
 //
-// `callRuntime` cleared its abort timer only after a successful fetch, so when
-// the runtime was unreachable — the normal case on a machine without it, which
-// is exactly why the tools have a CLI fallback — the timer stayed pending for
-// its full 5s. A pending timer keeps the event loop alive, so the host process
-// hung for five seconds at exit on every single call. `isRuntimeAvailable`
-// never captured its timer at all.
-//
-// Invisible in-process (the call itself returns in ~20ms); only the exit is
-// delayed. So this measures how long a child takes to *exit* after the call
-// resolves.
+// Bun's `$` has no timeout, so a hung backend held every tool call -- and the
+// post-edit hook -- open indefinitely. `runIx` now kills `ix` at a deadline and
+// reports it as a failure, not as an answer.
 
-test("runtime client does not hold the process open after an unreachable call", async () => {
-  const dir = mkdtempSync(path.join(tmpdir(), "ix-timer-"));
+test("runIx kills a hung ix at its deadline and reports the timeout", async () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "ix-timeout-"));
   try {
+    writeFakeIx(dir, "echo partial; sleep 10; echo '{}'");
     const runner = path.join(dir, "runner.ts");
-    const client = path.resolve(import.meta.dir, "../runtime/client.ts");
+    const cli = path.resolve(import.meta.dir, "../runtime/cli.ts");
     writeFileSync(
       runner,
-      `const client = await import(${JSON.stringify(client)});\n` +
-      // Port 9 (discard) refuses immediately, so any delay is the leaked timer.
-      `await client.callRuntime("/v2/ix_query", {}, { dir: ${JSON.stringify(dir)} });\n` +
-      `await client.isRuntimeAvailable();\n`,
+      `const { runIx } = await import(${JSON.stringify(cli)});\n` +
+      `const run = await runIx(["stats", "--format", "json"], ${JSON.stringify(dir)}, { timeoutMs: 300 });\n` +
+      `process.stdout.write(JSON.stringify(run));\n`,
     );
 
     const started = Date.now();
     const proc = Bun.spawn([process.execPath, runner], {
-      env: { ...process.env, IX_RUNTIME_URL: "http://127.0.0.1:9" },
-      stdout: "ignore",
+      env: { ...process.env, PATH: fakePath(dir) },
+      stdout: "pipe",
       stderr: "ignore",
     });
+    const out = await new Response(proc.stdout).text();
     await proc.exited;
     const elapsed = Date.now() - started;
 
-    // Was ~5000ms (callRuntime) + ~2000ms (isRuntimeAvailable) before the fix.
-    // A generous ceiling still separates "exits promptly" from "waits out a
-    // 5s timer", without being flaky on a slow runner.
-    expect(elapsed).toBeLessThan(3000);
+    const run = JSON.parse(out);
+    expect(run.timedOut).toBe(true);
+    expect(run.stdout).toBe("");
+    expect(run.stderr).toContain("timed out");
+    expect(elapsed).toBeLessThan(5000);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -383,12 +375,11 @@ async function runNamedToolWithStub(
   toolFile: string,
   params: Record<string, unknown>,
   stubScript: string,
+  extraEnv: Record<string, string> = {},
 ): Promise<string> {
   const dir = mkdtempSync(path.join(tmpdir(), "ix-stub-multi-"));
   try {
-    const bin = path.join(dir, "ix");
-    writeFileSync(bin, `#!/bin/sh\n${stubScript}\n`);
-    chmodSync(bin, 0o755);
+    writeFakeIx(dir, stubScript);
 
     const runner = path.join(dir, "runner.ts");
     const toolPath = path.resolve(import.meta.dir, `../tools/${toolFile}`);
@@ -402,12 +393,13 @@ async function runNamedToolWithStub(
     const proc = Bun.spawn([process.execPath, runner], {
       env: {
         ...process.env,
-        PATH: `${dir}${path.delimiter}/usr/bin${path.delimiter}/bin`,
+        PATH: fakePath(dir),
         // The llm fast path is version-gated and would otherwise shadow the
         // JSON path these cases are about. Disabling it explicitly keeps each
         // case on one path rather than relying on the stub failing to look
         // like a version string.
         IX_DISABLE_LLM_FORMAT: "1",
+        ...extraEnv,
       },
       stdout: "pipe",
       stderr: "pipe",
@@ -487,5 +479,52 @@ describe("NonZeroExitAcrossTools", () => {
     );
 
     expect(output).toContain("backend unreachable at :8090");
+  });
+});
+
+// ─── RetiredCliShapes ────────────────────────────────────────────────────────
+//
+// The fake `ix` (tests/fake-ix.ts) rejects what the real CLI rejects. These
+// drive the tools that used to send those shapes.
+
+describe("RetiredCliShapes", () => {
+  test("ix-smells never sends --path (ix smells has no such flag)", async () => {
+    const output = await runNamedToolWithStub(
+      "ix-smells.ts",
+      { limit: 5 },
+      `echo '{"count":0,"candidates":[]}'`,
+    );
+
+    expect(output).toContain("No code smells detected.");
+    expect(output).not.toContain("unknown option");
+  });
+
+  test("ix-ingest finds ix on PATH (Bun's shell has no `command -v`)", async () => {
+    const output = await runNamedToolWithStub(
+      "ix-ingest.ts",
+      {},
+      `echo '{"connected":true,"graphPresent":true,"fileCount":3}'`,
+    );
+
+    expect(output).not.toContain("ix CLI not found");
+    expect(output).toContain("**Files indexed:** 3");
+  });
+
+  test("ix-ingest refresh maps a directory, never a file", async () => {
+    const log = path.join(mkdtempSync(path.join(tmpdir(), "ix-log-")), "calls");
+    try {
+      const output = await runNamedToolWithStub(
+        "ix-ingest.ts",
+        { refresh: true },
+        `[ "$1" = map ] && echo "mapped" && exit 0; echo '{}'`,
+        { IX_FAKE_LOG: log },
+      );
+
+      expect(output).toContain("Graph refresh complete");
+      const calls = existsSync(log) ? readFileSync(log, "utf8") : "";
+      expect(calls).toMatch(/\|map \S+ --silent\n/);
+    } finally {
+      rmSync(path.dirname(log), { recursive: true, force: true });
+    }
   });
 });

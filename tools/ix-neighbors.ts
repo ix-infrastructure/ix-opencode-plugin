@@ -7,10 +7,8 @@
  * Use to understand who uses a symbol and what it depends on.
  */
 
-import { $ } from "bun";
 import { safeRun } from "../runtime/cli.ts";
 import { tryLlm } from "../runtime/llm.ts";
-import { callRuntime } from "../runtime/client.ts";
 
 export const name = "ix-neighbors";
 export const description =
@@ -66,21 +64,6 @@ export async function execute(
   const limit = Math.min(params.limit ?? 15, 30);
   const depth = Math.min(params.depth ?? 2, 3);
 
-  // Try runtime API first — use preview_markdown when available
-  const edgeTypes = direction === "all"
-    ? ["calls", "imports", "depends_on"]
-    : direction === "callers" ? ["calls"]
-    : direction === "callees" ? ["calls"]
-    : direction === "depends" ? ["depends_on"]
-    : ["imports"];
-  const rr = await callRuntime("/v2/graph/query", {
-    operation: "neighbors",
-    selectors: [{ kind: "symbol", value: params.symbol }],
-    edge_types: edgeTypes,
-    depth,
-  }, { dir });
-  if (typeof rr?.preview_markdown === "string") return rr.preview_markdown;
-
   const sections: string[] = [`## ix-neighbors: ${params.symbol}`, ""];
 
   if (direction === "callers" || direction === "all") {
@@ -128,8 +111,9 @@ async function fetchSection(
     // record; a bare `.text()` would drop it and report "(parse error)".
     const output = await safeRun(
       direction === "depends" && depth !== undefined
-        ? $`ix depends ${symbol} --depth ${depth} --format json`.cwd(dir)
-        : $`ix ${direction} ${symbol} --limit ${limit} --format json`.cwd(dir),
+        ? ["depends", symbol, "--depth", String(depth), "--format", "json"]
+        : [direction, symbol, "--limit", String(limit), "--format", "json"],
+      dir,
     );
     if (output === null) return `**${direction}:** unavailable\n`;
 
