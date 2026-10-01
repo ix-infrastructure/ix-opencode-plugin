@@ -1,0 +1,1 @@
+error code=workspace_not_mapped message="/tmp/tmp.aWIz1DclPg is not inside a mapped Ix workspace, so there is no graph to answer from." dir=/tmp/tmp.aWIz1DclPg hint="Run `ix map /tmp/tmp.aWIz1DclPg` to map this directory, or run the command from inside a workspace that is already mapped (`ix config show` lists them)."

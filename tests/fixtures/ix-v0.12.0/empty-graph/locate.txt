@@ -1,0 +1,1 @@
+error code=unresolved_target message="No graph entity found for \"Foo\"."
