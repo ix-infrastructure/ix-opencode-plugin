@@ -4,12 +4,13 @@
  * ix-plugin.ts — OpenCode plugin entry point (v1.4.2 format)
  *
  * Exports `server` — the Plugin function that registers all 17 Ix tools
- * and post-edit ingest / stale-graph hooks.
+ * and the post-edit refresh / stale-graph hooks.
  */
 
 import { tool } from "@opencode-ai/plugin";
 import type { Plugin } from "@opencode-ai/plugin";
-import { $ } from "bun";
+
+import { requestAutoMap } from "../runtime/automap.ts";
 
 import * as ixQuery from "../tools/ix-query";
 import * as ixNeighbors from "../tools/ix-neighbors";
@@ -34,23 +35,29 @@ const IX_GRAPH_TOOLS = [
   "ix-locate", "ix-explain", "ix-rank", "ix-trace", "ix-smells",
 ];
 
+// OpenCode's file-changing tools. edit/write/multiedit name the file
+// `filePath` (sst/opencode tool/edit.ts, write.ts); apply_patch carries a patch
+// and no single path.
+const EDIT_TOOLS = new Set(["edit", "write", "multiedit", "apply_patch"]);
+
 function isSourceFile(path: string): boolean {
   const skip = ["node_modules", ".git", "dist", "build", ".opencode/ix-cache", "package-lock.json", "yarn.lock", "bun.lock"];
   return !skip.some((s) => path.includes(s));
 }
 
+/** The edited path, under either spelling; undefined when the tool has none. */
+function editedPath(args: unknown): string | undefined {
+  if (!args || typeof args !== "object") return undefined;
+  const a = args as Record<string, unknown>;
+  const p = a.filePath ?? a.file_path;
+  return typeof p === "string" ? p : undefined;
+}
+
 export const server: Plugin = async ({ directory }) => {
-  // Trigger initial graph build if empty
-  try {
-    const out = await $`ix subsystems --list --format json`.cwd(directory).quiet().text();
-    const parsed = JSON.parse(out);
-    const names: string[] = parsed.names ?? parsed.list ?? [];
-    if (names.length === 0) {
-      $`ix map --silent`.cwd(directory).quiet().catch(() => {});
-    }
-  } catch {
-    // ix unavailable — tools will return helpful fallback messages
-  }
+  // No graph work at startup. This used to probe `ix subsystems --list` and
+  // run `ix map` when it saw no names -- but it read a key that command never
+  // emits, so it mapped on every OpenCode start, mapped or not. A map is now
+  // only ever a guarded refresh of an already-mapped repo (runtime/automap.ts).
 
   return {
     // ─── Tools ───────────────────────────────────────────────────────────────
@@ -237,7 +244,6 @@ export const server: Plugin = async ({ directory }) => {
       "ix-smells": tool({
         description: ixSmells.description,
         args: {
-          path: tool.schema.string().optional().describe("Restrict smell detection to a directory path prefix"),
           limit: tool.schema.number().optional().describe("Max results. Default: 50, max: 200"),
         },
         async execute(args, ctx) {
@@ -249,10 +255,13 @@ export const server: Plugin = async ({ directory }) => {
     // ─── Hooks ───────────────────────────────────────────────────────────────
 
     "tool.execute.after": async (input, output) => {
-      // Post-edit ingest: async graph refresh after file writes
-      if ((input.tool === "write" || input.tool === "edit") && typeof input.args?.file_path === "string") {
-        if (isSourceFile(input.args.file_path)) {
-          $`ix map --silent`.cwd(directory).quiet().catch(() => {});
+      // Post-edit refresh: ask for a guarded, debounced map of the repo root.
+      // Not awaited -- the guard's probes are bounded, but the edit result
+      // should not wait on them at all.
+      if (EDIT_TOOLS.has(input.tool)) {
+        const edited = editedPath(input.args);
+        if (edited === undefined || isSourceFile(edited)) {
+          void requestAutoMap(directory);
         }
       }
 

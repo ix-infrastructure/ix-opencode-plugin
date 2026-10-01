@@ -7,7 +7,6 @@
  * Use to explore what lives in a subsystem or directory without reading individual files.
  */
 
-import { $ } from "bun";
 import { runIx, failureDetail } from "../runtime/cli.ts";
 import { tryLlm } from "../runtime/llm.ts";
 
@@ -46,7 +45,7 @@ export async function execute(params: Params, context: Context): Promise<string>
   const fast = await tryLlm(["inventory", "--kind", kind, "--path", params.path], dir);
   if (fast) return `## ix-inventory: ${params.path}\n\n${fast}`;
 
-  const run = await runIx($`ix inventory --kind ${kind} --path ${params.path} --format json`.cwd(dir));
+  const run = await runIx(["inventory", "--kind", kind, "--path", params.path, "--format", "json"], dir);
   if (!run?.stdout.trim()) return unavailable(params.path, kind, failureDetail(run));
   const output = run.stdout;
 

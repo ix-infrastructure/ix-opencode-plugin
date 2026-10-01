@@ -7,7 +7,6 @@
  * Use to surface hotspots, high-fan-in classes, and centrality candidates.
  */
 
-import { $ } from "bun";
 import { runIx, failureDetail } from "../runtime/cli.ts";
 import { tryLlm } from "../runtime/llm.ts";
 
@@ -67,7 +66,7 @@ export async function execute(params: Params, context: Context): Promise<string>
   }
 
   const args = [
-    "ix", "rank",
+    "rank",
     "--by", by,
     "--kind", kind,
     "--top", String(top),
@@ -75,7 +74,7 @@ export async function execute(params: Params, context: Context): Promise<string>
   ];
   if (params.path) args.push("--path", params.path);
 
-  const run = await runIx($`${args}`.cwd(dir));
+  const run = await runIx(args, dir);
   if (!run?.stdout.trim()) return unavailable(by, kind, failureDetail(run));
   const output = run.stdout;
 

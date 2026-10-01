@@ -7,9 +7,11 @@
  * Can optionally trigger a graph refresh via `ix map`.
  */
 
-import { $ } from "bun";
-import { safeRun } from "../runtime/cli.ts";
-import { callRuntime } from "../runtime/client.ts";
+import { runIx, safeRun, failureDetail } from "../runtime/cli.ts";
+import { resolveGitRoot, isUnmappableRoot } from "../runtime/automap.ts";
+
+// An explicit rebuild can take minutes on a large repo; it is still bounded.
+const REFRESH_TIMEOUT_MS = 10 * 60_000;
 
 export const name = "ix-ingest";
 export const description =
@@ -50,63 +52,17 @@ export async function execute(
 ): Promise<string> {
   const dir = context.worktree ?? context.directory;
 
-  // Check ix availability first
-  let ixAvailable = false;
-  try {
-    await $`command -v ix`.cwd(dir).quiet().text();
-    ixAvailable = true;
-  } catch {
-    return unavailable();
-  }
+  // Bun's shell has no `command` builtin, so `$\`command -v ix\`` threw on
+  // every machine and this tool reported "ix CLI not found" unconditionally.
+  if (!Bun.which("ix")) return unavailable();
 
-  if (!ixAvailable) return unavailable();
-
-  // If refresh requested: try runtime ingest/map, fall back to CLI
-  if (params.refresh) {
-    const rr = await callRuntime("/v2/ingest/map", {
-      trigger: "manual",
-      priority: "normal",
-    }, { dir });
-    if (rr) {
-      const jobId = typeof rr.job_id === "string" ? rr.job_id : "accepted";
-      return [
-        "## ix-ingest: graph refresh",
-        "",
-        `**Status:** Graph update queued (runtime).`,
-        `**Job:** ${jobId}`,
-      ].join("\n");
-    }
-
-    const silent = params.silent !== false;
-    try {
-      if (silent) {
-        await $`ix map --silent`.cwd(dir).text();
-      } else {
-        await $`ix map`.cwd(dir).text();
-      }
-      return [
-        "## ix-ingest: graph refresh",
-        "",
-        "**Status:** Graph refresh complete.",
-        "The Ix graph has been rebuilt. Graph data is now current.",
-      ].join("\n");
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      return [
-        "## ix-ingest: graph refresh",
-        "",
-        `**Status:** Refresh failed — ${msg}`,
-        "",
-        "Try running `ix map` manually to diagnose.",
-      ].join("\n");
-    }
-  }
+  if (params.refresh) return await refresh(context, params.silent !== false);
 
   // Status check
   // `ix status` exits non-zero when the graph is unhealthy but still reports
   // why (Ix#549). That report is the answer this tool wants; only a genuinely
   // empty result should fall through to the probe.
-  const statusRun = await safeRun($`ix status --format json`.cwd(dir));
+  const statusRun = await safeRun(["status", "--format", "json"], dir);
   if (statusRun === null) return await probeStatus(dir);
   const statusOutput = statusRun;
 
@@ -127,10 +83,48 @@ export async function execute(
   return formatStatus(status);
 }
 
+/**
+ * Rebuild the graph for the project's git root.
+ *
+ * `ix map` takes a directory, never a file, and the directory is the repo root
+ * -- not OpenCode's worktree, which is "/" for a project outside git. A root of
+ * $HOME or / is refused: mapping either would ingest everything under it.
+ */
+async function refresh(context: Context, silent: boolean): Promise<string> {
+  const root = (await resolveGitRoot(context.directory)) ?? context.directory;
+  if (isUnmappableRoot(root)) {
+    return [
+      "## ix-ingest: graph refresh",
+      "",
+      `**Status:** Not refreshed — \`${root}\` is not a project root.`,
+      "",
+      "Run `ix map <project-dir>` from the project you want indexed.",
+    ].join("\n");
+  }
+
+  const args = silent ? ["map", root, "--silent"] : ["map", root];
+  const run = await runIx(args, root, { timeoutMs: REFRESH_TIMEOUT_MS });
+  if (run && run.exitCode === 0) {
+    return [
+      "## ix-ingest: graph refresh",
+      "",
+      "**Status:** Graph refresh complete.",
+      "The Ix graph has been rebuilt. Graph data is now current.",
+    ].join("\n");
+  }
+  return [
+    "## ix-ingest: graph refresh",
+    "",
+    `**Status:** Refresh failed — ${failureDetail(run)}`,
+    "",
+    "Try running `ix map` manually to diagnose.",
+  ].join("\n");
+}
+
 async function probeStatus(dir: string): Promise<string> {
   // Probe by running ix subsystems — if it returns data, graph is present
   try {
-    const output = await safeRun($`ix subsystems --list --format json`.cwd(dir));
+    const output = await safeRun(["subsystems", "--list", "--format", "json"], dir);
     if (output === null) throw new Error("no output");
     const parsed = JSON.parse(output);
     const names: string[] = parsed.names ?? parsed.list ?? [];

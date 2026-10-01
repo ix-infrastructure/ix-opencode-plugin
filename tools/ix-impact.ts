@@ -7,9 +7,7 @@
  * Depth of analysis scales with the risk level detected.
  */
 
-import { $ } from "bun";
 import { runIx, safeRun, failureDetail } from "../runtime/cli.ts";
-import { callRuntime } from "../runtime/client.ts";
 
 export const name = "ix-impact";
 export const description =
@@ -41,13 +39,7 @@ export async function execute(
 ): Promise<string> {
   const dir = context.worktree ?? context.directory;
 
-  // Try runtime API first — use preview_markdown when available
-  const rr = await callRuntime("/v2/ix_query", {
-    query: { mode: "impact", targets: [{ kind: "path", value: params.target }] },
-  }, { dir });
-  if (typeof rr?.preview_markdown === "string") return rr.preview_markdown;
-
-  const run = await runIx($`ix impact ${params.target} --format json`.cwd(dir));
+  const run = await runIx(["impact", params.target, "--format", "json"], dir);
   if (!run?.stdout.trim()) return unavailable(params.target, failureDetail(run));
   const impactOutput = run.stdout;
 
@@ -87,9 +79,7 @@ export async function execute(
   try {
     // `ix callers` is in the set Ix#547 makes exit 1 on an unresolved target
     // while still printing the record.
-    const callersOutput = await safeRun(
-      $`ix callers ${params.target} --limit 20 --format json`.cwd(dir),
-    );
+    const callersOutput = await safeRun(["callers", params.target, "--limit", "20", "--format", "json"], dir);
     if (callersOutput === null) throw new Error("no output");
     const parsed = JSON.parse(callersOutput);
     callers = parsed.items ?? [];

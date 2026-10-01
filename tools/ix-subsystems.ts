@@ -8,7 +8,6 @@
  * and to understand the architectural decomposition of the codebase.
  */
 
-import { $ } from "bun";
 import { runIx, failureDetail } from "../runtime/cli.ts";
 import { tryLlm } from "../runtime/llm.ts";
 
@@ -31,7 +30,7 @@ export async function execute(_params: Params, context: Context): Promise<string
   const fast = await tryLlm(["subsystems"], dir);
   if (fast) return `## ix-subsystems\n\n${fast}`;
 
-  const run = await runIx($`ix subsystems --format json`.cwd(dir));
+  const run = await runIx(["subsystems", "--format", "json"], dir);
   if (!run?.stdout.trim()) return unavailable(failureDetail(run));
   const output = run.stdout;
 

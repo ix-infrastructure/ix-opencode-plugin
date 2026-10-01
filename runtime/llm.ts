@@ -41,8 +41,7 @@
  * absent from the table below and must stay absent.
  */
 
-import { $ } from "bun";
-import { safeRun } from "./cli.ts";
+import { runIx, safeRun } from "./cli.ts";
 import { redactSecrets } from "./secrets.ts";
 
 type SemVer = [number, number, number];
@@ -115,14 +114,11 @@ export function resetLlmVersionCache(): void {
 async function detectVersion(cwd: string): Promise<SemVer | null> {
   if (!versionPromise) {
     versionPromise = (async () => {
-      try {
-        const out = await $`ix --version`.cwd(cwd).quiet().text();
-        return parseSemver(out.trim());
-      } catch {
-        // No CLI, or it failed. Fail closed: the JSON path still works, and a
-        // tool that cannot run `ix --version` cannot run anything else either.
-        return null;
-      }
+      const run = await runIx(["--version"], cwd, { timeoutMs: 10_000 });
+      // No CLI, or it failed. Fail closed: the JSON path still works, and a
+      // tool that cannot run `ix --version` cannot run anything else either.
+      if (!run || run.exitCode !== 0) return null;
+      return parseSemver(run.stdout.trim());
     })();
   }
   return versionPromise;
@@ -173,12 +169,11 @@ export async function tryLlm(
   // reports the CLI as unavailable. `isLlmErrorLine` below already handles a
   // genuine `error code=...` record, so a failure that says something useful is
   // still rejected on its merits rather than on its exit code.
-  const out = await safeRun($`ix ${[...args, "--format", "llm"]}`.cwd(cwd));
+  const out = await safeRun([...args, "--format", "llm"], cwd);
   if (out === null) return null;
 
-  // Scrubbed before it reaches the model. The JSON path does not do this today
-  // — only the runtime client scrubs — so this is not parity with it, just the
-  // cheaper side of the choice: redactSecrets is idempotent and order-free, so
+  // Scrubbed before it reaches the model. The JSON path does not do this today,
+  // so this is not parity with it, just the cheaper side of the choice: redactSecrets is idempotent and order-free, so
   // one pass over flat key=value lines costs nothing and cannot make the output
   // wrong. Bringing the JSON path up to match is a separate change.
   const text = redactSecrets(out).trim();

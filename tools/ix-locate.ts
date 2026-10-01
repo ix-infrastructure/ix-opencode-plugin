@@ -8,7 +8,6 @@
  * For exact symbol lookup use ix-query instead.
  */
 
-import { $ } from "bun";
 import { runIx, failureDetail } from "../runtime/cli.ts";
 import { tryLlm } from "../runtime/llm.ts";
 
@@ -62,11 +61,11 @@ export async function execute(params: Params, context: Context): Promise<string>
   const fast = await tryLlm(llmArgs, dir);
   if (fast) return `## ix-locate: ${params.pattern}\n\n${fast}`;
 
-  const args = ["ix", "text", params.pattern, "--limit", String(limit), "--format", "json"];
+  const args = ["text", params.pattern, "--limit", String(limit), "--format", "json"];
   if (params.path) args.push("--path", params.path);
   if (params.language) args.push("--language", params.language);
 
-  const run = await runIx($`${args}`.cwd(dir));
+  const run = await runIx(args, dir);
   if (!run?.stdout.trim()) return unavailable(params.pattern, failureDetail(run));
   const output = run.stdout;
 

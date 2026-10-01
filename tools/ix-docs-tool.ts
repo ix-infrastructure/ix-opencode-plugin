@@ -8,9 +8,7 @@
  * Not the same as the /ix-docs skill — this is a lightweight context fetcher.
  */
 
-import { $ } from "bun";
 import { safeRun } from "../runtime/cli.ts";
-import { callRuntime } from "../runtime/client.ts";
 
 export const name = "ix-docs-tool";
 export const description =
@@ -51,23 +49,12 @@ export async function execute(
   const dir = context.worktree ?? context.directory;
   const depth = params.depth ?? "standard";
 
-  // Try runtime API first — use preview_markdown when available
-  const depthMap = { brief: "shallow", standard: "medium", full: "deep" } as const;
-  const rr = await callRuntime("/v2/ix_query", {
-    query: {
-      mode: "docs",
-      depth: depthMap[depth],
-      targets: [{ kind: "path", value: params.target }],
-    },
-  }, { dir });
-  if (typeof rr?.preview_markdown === "string") return rr.preview_markdown;
-
   // Phase 1: locate + overview in parallel
   const [locateOut, overviewOut, statsOut] = await Promise.all([
-    safeRun($`ix locate ${params.target} --format json`.cwd(dir)),
-    safeRun($`ix overview ${params.target} --format json`.cwd(dir)),
+    safeRun(["locate", params.target, "--format", "json"], dir),
+    safeRun(["overview", params.target, "--format", "json"], dir),
     depth !== "brief"
-      ? safeRun($`ix stats --format json`.cwd(dir))
+      ? safeRun(["stats", "--format", "json"], dir)
       : Promise.resolve(null),
   ]);
 
@@ -131,7 +118,7 @@ export async function execute(
   if (components.length > 0) {
     const explains = await Promise.all(
       components.map((c) =>
-        safeRun($`ix explain ${c} --format json`.cwd(dir))
+        safeRun(["explain", c, "--format", "json"], dir)
       )
     );
 
@@ -153,9 +140,7 @@ export async function execute(
 
   if (depth === "full") {
     // Phase 3: impact for context
-    const impactOut = await safeRun(
-      $`ix impact ${params.target} --format json`.cwd(dir)
-    );
+    const impactOut = await safeRun(["impact", params.target, "--format", "json"], dir);
     if (impactOut) {
       try {
         const impact = JSON.parse(impactOut);

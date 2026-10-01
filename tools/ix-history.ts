@@ -7,7 +7,6 @@
  * for a symbol or the workspace. Requires Ix Pro.
  */
 
-import { $ } from "bun";
 import { safeRun } from "../runtime/cli.ts";
 
 export const name = "ix-history";
@@ -69,7 +68,7 @@ export async function execute(
       // On OSS `ix briefing` is a Pro stub: it exits non-zero with nothing on
       // stdout, so safeRun still returns null and Pro stays undetected. What
       // changes is a Pro CLI that exits non-zero while reporting why.
-      const output = await safeRun($`ix briefing --format json`.cwd(dir));
+      const output = await safeRun(["briefing", "--format", "json"], dir);
       if (output === null) throw new Error("no output");
       const parsed = JSON.parse(output);
       if (parsed.revision) {
@@ -102,9 +101,7 @@ export async function execute(
   if (include.includes("decisions") || include.includes("briefing")) {
     if (params.topic) {
       try {
-        const output = await safeRun(
-          $`ix decisions --topic ${params.topic} --format json`.cwd(dir),
-        );
+        const output = await safeRun(["decisions", "--topic", params.topic, "--format", "json"], dir);
         if (output === null) throw new Error("no output");
         const parsed = JSON.parse(output);
         sections.push(formatDecisions(parsed.decisions ?? []));
