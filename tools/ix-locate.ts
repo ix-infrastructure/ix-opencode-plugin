@@ -10,6 +10,7 @@
 
 import { runIx, failureDetail } from "../runtime/cli.ts";
 import { tryLlm } from "../runtime/llm.ts";
+import { formatIxError, parseIxError } from "../runtime/ix-error.ts";
 
 export const name = "ix-locate";
 export const description =
@@ -68,6 +69,8 @@ export async function execute(params: Params, context: Context): Promise<string>
   const run = await runIx(args, dir);
   if (!run?.stdout.trim()) return unavailable(params.pattern, failureDetail(run));
   const output = run.stdout;
+  const ixErr = parseIxError(output);
+  if (ixErr) return formatIxError(`## ix-locate: ${params.pattern}`, ixErr);
 
   let hits: {
     path?: string;

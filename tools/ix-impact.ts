@@ -8,6 +8,7 @@
  */
 
 import { runIx, safeRun, failureDetail } from "../runtime/cli.ts";
+import { formatIxError, parseIxError } from "../runtime/ix-error.ts";
 
 export const name = "ix-impact";
 export const description =
@@ -42,6 +43,11 @@ export async function execute(
   const run = await runIx(["impact", params.target, "--format", "json"], dir);
   if (!run?.stdout.trim()) return unavailable(params.target, failureDetail(run));
   const impactOutput = run.stdout;
+  // `ix impact` on a target it cannot resolve, or in an unmapped workspace,
+  // prints an error record and exits 1. That is an answer, but not an impact
+  // report: reading it as one produced a verdict for a target Ix never found.
+  const ixErr = parseIxError(impactOutput);
+  if (ixErr) return formatIxError(`## ix-impact: ${params.target}`, ixErr);
 
   let impact: {
     target?: string;

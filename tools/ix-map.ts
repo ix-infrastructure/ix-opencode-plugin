@@ -8,6 +8,7 @@
  */
 
 import { safeRun } from "../runtime/cli.ts";
+import { ixErrorLines, parseIxError } from "../runtime/ix-error.ts";
 
 export const name = "ix-map";
 export const description =
@@ -78,6 +79,9 @@ async function fetchSubsystems(dir: string, scope?: string): Promise<string> {
     // still emitting the record (Ix#538), so keep stdout rather than throwing.
     const output = await safeRun(args, dir);
     if (output === null) throw new Error("ix subsystems produced no output");
+    // An error record has no regions; reading it as a result said "none found".
+    const ixErr = parseIxError(output);
+    if (ixErr) return ["**Subsystems:**", ...ixErrorLines(ixErr)].join("\n");
     const parsed = JSON.parse(output);
 
     const systems: {

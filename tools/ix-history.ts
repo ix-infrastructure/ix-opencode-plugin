@@ -8,6 +8,7 @@
  */
 
 import { safeRun } from "../runtime/cli.ts";
+import { formatIxError, parseIxError, type IxError } from "../runtime/ix-error.ts";
 
 export const name = "ix-history";
 export const description =
@@ -63,6 +64,7 @@ export async function execute(
     activePlans?: unknown[];
   } = {};
 
+  let briefingErr: IxError | null = null;
   if (include.includes("briefing") || !params.topic) {
     try {
       // On OSS `ix briefing` is a Pro stub: it exits non-zero with nothing on
@@ -70,6 +72,9 @@ export async function execute(
       // changes is a Pro CLI that exits non-zero while reporting why.
       const output = await safeRun(["briefing", "--format", "json"], dir);
       if (output === null) throw new Error("no output");
+      // A Pro CLI that cannot answer (unmapped workspace, empty graph) says so
+      // in an error record; that is not "Pro is unavailable".
+      briefingErr = parseIxError(output);
       const parsed = JSON.parse(output);
       if (parsed.revision) {
         proAvailable = true;
@@ -78,6 +83,10 @@ export async function execute(
     } catch {
       // Pro not available
     }
+  }
+
+  if (!proAvailable && briefingErr) {
+    return formatIxError(`## ix-history${params.topic ? `: ${params.topic}` : ""}`, briefingErr);
   }
 
   if (!proAvailable) {

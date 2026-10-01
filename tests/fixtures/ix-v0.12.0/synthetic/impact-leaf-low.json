@@ -1,0 +1,1 @@
+{"resolvedTarget":{"kind":"function","name":"formatDuration"},"depth":1,"riskSummary":"Low risk — localized impact with limited propagation.","riskLevel":"low","riskCategory":"localized","atRiskBehavior":["Human-readable durations in status output"],"summary":{"callers":1,"callees":0},"callerList":[{"kind":"function","name":"renderStatus"}]}

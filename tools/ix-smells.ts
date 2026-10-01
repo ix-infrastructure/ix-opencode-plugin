@@ -10,6 +10,7 @@
 
 import { runIx, failureDetail } from "../runtime/cli.ts";
 import { tryLlm } from "../runtime/llm.ts";
+import { formatIxError, parseIxError } from "../runtime/ix-error.ts";
 
 export const name = "ix-smells";
 export const description =
@@ -45,6 +46,10 @@ export async function execute(params: Params, context: Context): Promise<string>
   const run = await runIx(["smells", "--format", "json"], dir);
   if (!run?.stdout.trim()) return unavailable(failureDetail(run));
   const output = run.stdout;
+  // An error record (unmapped workspace, empty graph) has no `candidates`, and
+  // reading it as a result reported "Architecture looks clean".
+  const ixErr = parseIxError(output);
+  if (ixErr) return formatIxError("## ix-smells", ixErr);
 
   let raw: {
     rev?: number;

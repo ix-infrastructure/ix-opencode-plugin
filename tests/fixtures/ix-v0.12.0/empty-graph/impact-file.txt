@@ -1,0 +1,2 @@
+error code=unresolved_target message="No file \"src/foo.ts\" in the graph, and none at that path on disk." reason=file_not_found
+graph status=empty reason=no_nodes message="The backend holds no graph for this workspace: it is registered but has not been mapped (or its data was reset)." fix="ix map"

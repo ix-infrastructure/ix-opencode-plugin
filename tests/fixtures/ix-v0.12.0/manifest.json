@@ -1,0 +1,146 @@
+{
+  "unmapped/impact.json": {
+    "command": "ix impact Foo --format json",
+    "exit": 1
+  },
+  "unmapped/impact.txt": {
+    "command": "ix impact Foo --format llm",
+    "exit": 1
+  },
+  "unmapped/callers.json": {
+    "command": "ix callers Foo --format json",
+    "exit": 1
+  },
+  "unmapped/callers.txt": {
+    "command": "ix callers Foo --format llm",
+    "exit": 1
+  },
+  "unmapped/trace.json": {
+    "command": "ix trace Foo --format json",
+    "exit": 1
+  },
+  "unmapped/trace.txt": {
+    "command": "ix trace Foo --format llm",
+    "exit": 1
+  },
+  "unmapped/explain.json": {
+    "command": "ix explain Foo --format json",
+    "exit": 1
+  },
+  "unmapped/explain.txt": {
+    "command": "ix explain Foo --format llm",
+    "exit": 1
+  },
+  "unmapped/locate.json": {
+    "command": "ix locate Foo --format json",
+    "exit": 1
+  },
+  "unmapped/locate.txt": {
+    "command": "ix locate Foo --format llm",
+    "exit": 1
+  },
+  "unmapped/smells-list.json": {
+    "command": "ix smells --list --format json",
+    "exit": 1
+  },
+  "unmapped/smells-list.txt": {
+    "command": "ix smells --list --format llm",
+    "exit": 1
+  },
+  "unmapped/stats.json": {
+    "command": "ix stats --format json",
+    "exit": 1
+  },
+  "unmapped/stats.txt": {
+    "command": "ix stats --format llm",
+    "exit": 1
+  },
+  "unmapped/subsystems.json": {
+    "command": "ix subsystems --format json",
+    "exit": 1
+  },
+  "unmapped/subsystems.txt": {
+    "command": "ix subsystems --format llm",
+    "exit": 1
+  },
+  "unmapped/rank.json": {
+    "command": "ix rank --by dependents --kind class --top 5 --format json",
+    "exit": 1
+  },
+  "unmapped/rank.txt": {
+    "command": "ix rank --by dependents --kind class --top 5 --format llm",
+    "exit": 1
+  },
+  "unmapped/inventory.json": {
+    "command": "ix inventory --kind file --path src/ --format json",
+    "exit": 1
+  },
+  "unmapped/inventory.txt": {
+    "command": "ix inventory --kind file --path src/ --format llm",
+    "exit": 1
+  },
+  "empty-graph/impact.json": {
+    "command": "ix impact Foo --format json",
+    "exit": 1
+  },
+  "empty-graph/impact.txt": {
+    "command": "ix impact Foo --format llm",
+    "exit": 1
+  },
+  "empty-graph/callers.json": {
+    "command": "ix callers Foo --format json",
+    "exit": 1
+  },
+  "empty-graph/callers.txt": {
+    "command": "ix callers Foo --format llm",
+    "exit": 1
+  },
+  "empty-graph/trace.json": {
+    "command": "ix trace Foo --format json",
+    "exit": 1
+  },
+  "empty-graph/trace.txt": {
+    "command": "ix trace Foo --format llm",
+    "exit": 1
+  },
+  "empty-graph/explain.json": {
+    "command": "ix explain Foo --format json",
+    "exit": 1
+  },
+  "empty-graph/explain.txt": {
+    "command": "ix explain Foo --format llm",
+    "exit": 1
+  },
+  "empty-graph/locate.json": {
+    "command": "ix locate Foo --format json",
+    "exit": 1
+  },
+  "empty-graph/locate.txt": {
+    "command": "ix locate Foo --format llm",
+    "exit": 1
+  },
+  "empty-graph/impact-file.json": {
+    "command": "ix impact src/foo.ts --format json",
+    "exit": 1
+  },
+  "empty-graph/impact-file.txt": {
+    "command": "ix impact src/foo.ts --format llm",
+    "exit": 1
+  },
+  "empty-graph/smells-list.json": {
+    "command": "ix smells --list --format json",
+    "exit": 0
+  },
+  "empty-graph/smells-list.txt": {
+    "command": "ix smells --list --format llm",
+    "exit": 0
+  },
+  "empty-graph/stats.json": {
+    "command": "ix stats --format json",
+    "exit": 0
+  },
+  "empty-graph/stats.txt": {
+    "command": "ix stats --format llm",
+    "exit": 0
+  }
+}

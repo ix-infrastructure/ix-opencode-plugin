@@ -10,6 +10,7 @@
 
 import { runIx, failureDetail } from "../runtime/cli.ts";
 import { tryLlm } from "../runtime/llm.ts";
+import { formatIxError, parseIxError } from "../runtime/ix-error.ts";
 
 export const name = "ix-subsystems";
 export const description =
@@ -33,6 +34,8 @@ export async function execute(_params: Params, context: Context): Promise<string
   const run = await runIx(["subsystems", "--format", "json"], dir);
   if (!run?.stdout.trim()) return unavailable(failureDetail(run));
   const output = run.stdout;
+  const ixErr = parseIxError(output);
+  if (ixErr) return formatIxError("## ix-subsystems", ixErr);
 
   let raw: {
     file_count?: number;

@@ -9,6 +9,7 @@
 
 import { safeRun } from "../runtime/cli.ts";
 import { tryLlm } from "../runtime/llm.ts";
+import { ixErrorLines, parseIxError } from "../runtime/ix-error.ts";
 
 export const name = "ix-neighbors";
 export const description =
@@ -116,6 +117,9 @@ async function fetchSection(
       dir,
     );
     if (output === null) return `**${direction}:** unavailable\n`;
+    // An error record has no `items`; reading it as a result reported "none".
+    const ixErr = parseIxError(output);
+    if (ixErr) return `**${capitalize(direction)}:**\n${ixErrorLines(ixErr).join("\n")}\n`;
 
     let result: {
       items?: { name: string; kind?: string; file?: string; subsystem?: string; callCount?: number }[];

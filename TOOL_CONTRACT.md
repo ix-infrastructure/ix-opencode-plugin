@@ -9,8 +9,9 @@ API reference for all 7 Ix tools. Each tool calls the `ix` CLI and returns a for
 1. **Input:** structured JSON parameters validated by OpenCode's parameter schema
 2. **Output:** formatted markdown string — never raw JSON, never structured objects
 3. **Fallback:** if `ix` is unavailable, return a helpful error with recovery steps rather than throwing
-4. **Depth scaling:** heavier analysis phases run only when lighter phases indicate they're needed
-5. **Directory:** all `ix` CLI calls run in `context.worktree ?? context.directory`
+4. **Ix error records:** since Ix v0.12.0 a read that cannot answer prints an error record on stdout and exits 1 — `{"error":"<code>","message":"…"}` in JSON, `error code=<code> message="…"` in llm. Tools recognise it with `runtime/ix-error.ts` and return **`Ix returned an error`** with the code, the message and Ix's own fix, never a "nothing found" or "clean" result. For `workspace_not_mapped`, or a `graph.status` of `empty`/`degraded`, the text says the project is not mapped and to run `ix map` from the project root (or `ix-ingest` with `refresh: true`). This is distinct from rule 3: there Ix said nothing (not installed, timed out, no output) and the tool reports **`ix unavailable`**.
+5. **Depth scaling:** heavier analysis phases run only when lighter phases indicate they're needed
+6. **Directory:** all `ix` CLI calls run in `context.worktree ?? context.directory`
 
 The string-only output constraint comes from the OpenCode runtime. Returning objects from tools has caused runtime issues in practice.
 
@@ -412,7 +413,22 @@ Handles payment processing, subscription management, and invoice generation. Dep
 
 **Parameters:** `touched_paths` (required array), `intent` (default `edit`), `risk_tolerance` (default `medium`)
 
-**CLI:** `ix impact <path> --format json` per touched file — synthesizes a conservative verdict from impact scores.
+**CLI:** `ix impact <path> --format json` per touched file (first 5) — synthesizes a conservative verdict from `riskLevel` and the dependent counts under `summary` (`directImporters + directDependents + memberLevelCallers` for a file, `callers` for a function: the same total Ix's risk inference uses). Subsystems come from `propagationBuckets[].region`.
+
+**Fails closed.** ALLOW is only given when every touched path has a parsed impact record with a real risk level and dependent counts.
+
+| Situation | Verdict |
+|---|---|
+| any path `riskLevel: critical`, or total dependents ≥ 20 (×0.5 / ×2 for `risk_tolerance` low / high) | BLOCK |
+| `ix` not installed, timed out, or exited with nothing on stdout | REVIEW |
+| an Ix error record (`workspace_not_mapped`, `unresolved_target`, `ambiguous_target`, …) | REVIEW |
+| output that does not parse, or JSON without `riskLevel` / dependent counts | REVIEW |
+| `riskLevel: unknown` or a `graph` block whose status is not `ok` (Ix withholds risk on a hollow graph) | REVIEW |
+| more than 5 paths (the rest are not checked), or no paths | REVIEW |
+| any path `riskLevel: high` or `medium`, or total dependents ≥ 5 (scaled as above) | REVIEW |
+| every path assessed, all `low`, total dependents below the REVIEW threshold | ALLOW |
+
+BLOCK outranks the REVIEW rows: a critical path is BLOCK even if another path could not be assessed. A REVIEW for a path Ix could not assess lists that path, the reason, and Ix's own fix.
 
 ---
 
