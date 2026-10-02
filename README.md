@@ -9,8 +9,8 @@ OpenCode + Ix = reasoning engine + persistent code knowledge graph. Skills are c
 ## Requirements
 
 - [OpenCode](https://opencode.ai) installed
-- [Ix Memory](https://github.com/ix-infrastructure/IX-Memory) CLI (`ix`) installed and connected to a workspace
-- [Bun](https://bun.sh) installed — **required** (all tools use Bun's `$` shell API; Node.js is not supported)
+- [Ix Memory](https://github.com/ix-infrastructure/Ix) CLI (`ix`) installed and connected to a workspace
+- [Bun](https://bun.sh) installed — **required** (every `ix` call goes through `Bun.spawn`; Node.js is not supported)
 
 ## Installation
 
@@ -159,18 +159,14 @@ All tools call the `ix` CLI, with a timeout on every call.
 | Trigger | Hook | Effect |
 |---------|------|--------|
 | Any session | `AGENTS.md` injection | Always-on graph-first guidance |
-| Before file edit | `tool.execute.before` → `ix-decide` | Policy verdict; surfaces risk for REVIEW/BLOCK |
-| Before `read` | `tool.execute.before` → `ix-read` | Hints toward graph narrowing first |
-| Before grep/bash | `tool.execute.before` → `ix-intercept` | Suggests `ix text` for search |
-| After file edit | `tool.execute.after` → `ix-ingest` | Async graph refresh (fire-and-forget) |
-| After ix-* tools | `tool.execute.after` → `ix-errors` | Detects stale graph signals |
-| Plugin init | `onInit` | Triggers `ix map` if graph is empty |
+| After file edit | `tool.execute.after` | Guarded, debounced `ix map` of the repo root, in the background |
+| After ix-* tools | `tool.execute.after` | Appends a refresh note when the output signals a stale graph |
 
-All hooks return `{ action: "allow" }` — they inject context but never block actions.
+The hooks never block an action. There is no pre-edit gate: `ix-decide` is a tool the agent calls, not a hook. The plugin runs no `ix` command at startup.
 
 ## Further reading
 
 - [QUICKSTART.md](./QUICKSTART.md) — step-by-step first use guide
 - [ARCHITECTURE.md](./ARCHITECTURE.md) — design decisions and component overview
 - [TOOL_CONTRACT.md](./TOOL_CONTRACT.md) — tool API reference and output format
-- [ROADMAP.md](./ROADMAP.md) — implementation progress and upcoming work
+- [ROADMAP.md](./ROADMAP.md) — task log of the 1.0 overhaul (historical)

@@ -33,13 +33,12 @@ ix-opencode-plugin/
   plugins/
     ix-plugin.ts             # plugin entry: registers tools and hooks
   tools/
-    ix-query.ts              # graph entity lookup (locate + explain)
-    ix-neighbors.ts          # neighborhood traversal (callers, callees, depends)
-    ix-impact.ts             # blast radius analysis
-    ix-map.ts                # architectural map and subsystem overview
-    ix-ingest.ts             # ingest status and graph refresh trigger
-    ix-history.ts            # revision, decisions, bugs (Ix Pro)
-    ix-docs-tool.ts          # condensed context summary for injection
+    ix-*.ts                  # 17 tools, one per file (listed in AGENTS.md and TOOL_CONTRACT.md)
+  runtime/
+    cli.ts                   # runs `ix` with a deadline
+    automap.ts               # guarded, debounced post-edit `ix map`
+    llm.ts                   # version-gated `--format llm` fast path
+    secrets.ts               # secret redaction for tool output
   commands/
     ix-understand.md         # /ix-understand — architectural mental model
     ix-investigate.md        # /ix-investigate — symbol deep dive
@@ -48,6 +47,7 @@ ix-opencode-plugin/
     ix-debug.md              # /ix-debug — root cause analysis
     ix-architecture.md       # /ix-architecture — structural health audit
     ix-docs.md               # /ix-docs — narrative-first documentation
+    ix-help.md               # /ix-help — routes to the right skill or tool
   agents/
     ix-explorer.json         # general-purpose exploration
     ix-system-explorer.json  # full architectural model building
@@ -64,9 +64,9 @@ ix-opencode-plugin/
 
 Wires the plugin together. References:
 - `plugin` → `plugins/ix-plugin.ts` (tool and hook registration)
-- `agent` → agent JSON files (custom agent definitions)
-- `command` → command markdown files (slash command skill files)
 - `instructions` → `AGENTS.md` (always-on context injection)
+
+Commands and agents are not listed in it: OpenCode discovers them from the `commands/` and `agents/` directories.
 
 ### `AGENTS.md` — always-on context
 
@@ -91,7 +91,7 @@ Key design decisions:
 
 ### `tools/*.ts` — CLI-backed tools
 
-Each tool calls the `ix` CLI using Bun's `$` shell API and returns a formatted markdown string. Tools are the primitive operations; skills and agents compose them.
+Each tool calls the `ix` CLI through `runtime/cli.ts` (`Bun.spawn` with a deadline) and returns a formatted markdown string. Tools are the primitive operations; skills and agents compose them.
 
 See [TOOL_CONTRACT.md](./TOOL_CONTRACT.md) for the full API contract.
 
@@ -121,19 +121,16 @@ Agents are higher-level than slash commands — they operate autonomously over m
 
 ## Hook design
 
-Five hooks are registered in `ix-plugin.ts`:
+`ix-plugin.ts` registers one handler, on `tool.execute.after`, which does two things:
 
-| Hook | Event | Trigger | Behavior |
-|---|---|---|---|
-| `ix-pre-edit` | `tool.execute.before` | write, edit | Impact check on target file; injects risk note for medium/high/critical |
-| `ix-read` | `tool.execute.before` | read | Hints to use ix-query first for broad (non-targeted) reads |
-| `ix-intercept` | `tool.execute.before` | bash | Suggests `ix text` when bash command looks like grep/rg |
-| `ix-ingest` | `tool.execute.after` | write, edit | Fires `ix map --silent` in background after source edits |
-| `ix-errors` | `tool.execute.after` | ix-* tools | Detects stale graph signals in tool output and suggests refresh |
+| Trigger | Behavior |
+|---|---|
+| edit, write, multiedit, apply_patch on a source file | Requests the guarded, debounced `ix map` of the repo root (`runtime/automap.ts`); not awaited |
+| ix graph-query tools (`IX_GRAPH_TOOLS`) | Appends a refresh note when the output signals a stale graph |
 
-**Design principle: advisory, not blocking.** All hooks return `{ action: "allow" }`. The goal is to inject context that nudges behavior, not to block actions. Blocking would make the plugin feel hostile.
+The `tool.execute.before` hooks of the pre-1.4.2 format (`ix-pre-edit`, `ix-read`, `ix-intercept`) were dropped in the migration to the OpenCode v1.4.2 plugin format (f9ea81e). `ix-decide` remains as a tool the agent can call before an edit.
 
-**Known limitation:** `tool.execute.before` may not reliably intercept subagent tool calls (open OpenCode issue). The hooks provide best-effort coverage for top-level agent actions.
+**Design principle: advisory, not blocking.** The goal is to nudge behavior, not to block actions. Blocking would make the plugin feel hostile.
 
 ---
 
@@ -216,7 +213,7 @@ OpenCode V1 has no clean pre-task hidden context injection hook. The plugin uses
 
 1. **`AGENTS.md` via `instructions` field** — always-on, injected into every session. Covers behavioral rules, reasoning strategy, and reference tables.
 
-2. **Hook `context` return field** — hooks can return `{ action: "allow", context: "..." }` to inject context into the current tool call. Used by `ix-pre-edit` (risk notes) and `ix-intercept` (search hints).
+2. **`tool.execute.after` output** — the hook can append to a tool's output. It adds a refresh note to ix-* results that signal a stale graph.
 
 When OpenCode adds a proper pre-task hook, the briefing logic can move there. For now, `AGENTS.md` handles the always-on case and hooks handle the event-driven case.
 
@@ -229,8 +226,7 @@ When OpenCode adds a proper pre-task hook, the briefing logic can move there. Fo
 | Tool returns must be strings | Format all ix JSON output as structured markdown before returning |
 | No pre-task context injection hook | Behavioral rules in `AGENTS.md` + advisory hooks |
 | No rich UI (no tables, cards, trees) | Return structured markdown with headers, bullets, code blocks |
-| `tool.execute.before` may miss subagent tool calls | Accept partial coverage; document the gap |
-| No first-class plugin KV store | Use `.opencode/ix-cache/` for any file-based state |
+| No first-class plugin KV store | Per-user state dir (`$XDG_STATE_HOME/ix-opencode-plugin/`, default `~/.local/state/`) for the auto-map debounce stamps |
 
 ---
 
@@ -249,7 +245,7 @@ Bun-specific APIs used:
 
 If OpenCode adds MCP support, the implementation path is:
 - Register an MCP server in `opencode.json`
-- Create `mcp/server.ts` with the same 17 tools, calling the runtime API
+- Create `mcp/server.ts` with the same 17 tools, calling the `ix` CLI
 - This would mirror the `ix-cursor-plugin/mcp/` structure
 
 Until then, all tools are registered as native OpenCode plugin tools via `plugins/ix-plugin.ts`.
@@ -261,8 +257,7 @@ When OpenCode adds the following capabilities, the plugin will upgrade:
 | Capability | Planned improvement |
 |---|---|
 | Pre-task hook | Move briefing from `AGENTS.md` to per-task injected context |
-| Reliable subagent hook interception | Enforce `ix-pre-edit` and `ix-intercept` for all agents |
+| Reliable subagent hook interception | Reinstate a pre-edit (`ix-decide`) and search-intercept hook that also covers subagents |
 | Structured tool return types | Return typed JSON from tools instead of markdown strings |
 | MCP support | Register Ix as an MCP server with 17 tools (`mcp/server.ts`) |
-| Ix Core Runtime v2 | Migrate all tools from CLI subprocess calls to runtime HTTP API |
 | Post-task summary hook | Add `ix-map` and `ix-report` hooks |

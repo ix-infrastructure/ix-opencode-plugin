@@ -17,16 +17,19 @@ concurrency:
 jobs:
   # ── Test ─────────────────────────────────────────────────────────────────
   # This is a Bun project (package.json `test` = `bun test`), so CI installs
-  # the Bun toolchain rather than Node. Bun executes the TypeScript test files
-  # directly — there is no separate build/typecheck step (no build script and
-  # no tsconfig in the repo). `bun test` skips the LiveIxCli suite unless
-  # IX_LIVE_TESTS=1 is set, so CI runs the offline contract/fallback tests.
-  # The live suite needs a real `ix` on PATH and a reachable backend, neither
-  # of which this runner has, so it stays opt-in (`bun run test:live`).
+  # the Bun toolchain rather than Node. Bun executes the TypeScript directly;
+  # there is no build, so `tsc --noEmit` (tsconfig.json) is the only type gate.
+  # `bun test` skips the LiveIxCli suite unless IX_LIVE_TESTS=1 is set, so CI
+  # runs the offline contract/fallback tests. The live suite needs a real `ix`
+  # on PATH and a reachable backend, neither of which this runner has, so it
+  # stays opt-in (`bun run test:live`).
   test:
     name: Test (bun)
     runs-on: ubuntu-latest
     steps:
+      - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -38,11 +41,17 @@ jobs:
       # python3 is preinstalled; the script shells out only to git).
       - name: Copyright headers on every source file
         run: python3 .github/scripts/copyright-headers.py
+      # Pinned, not `latest`: a new Bun release must not change CI results on
+      # its own. Keep in step with `bun-types` in package.json.
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
-          bun-version: latest
+          bun-version: "1.4.2"
+      # node_modules is not committed. --frozen-lockfile installs exactly what
+      # bun.lock records and fails if package.json and bun.lock disagree.
       - name: Install
-        run: bun install
+        run: bun install --frozen-lockfile
+      - name: Typecheck
+        run: bun run typecheck
       - name: Test
         run: bun test
 

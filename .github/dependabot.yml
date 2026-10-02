@@ -8,9 +8,31 @@ updates:
       actions:
         patterns: ["*"]
 
-  # No npm ecosystem entry: this is a Bun project and the only lockfile Bun
-  # produces is bun.lockb, which Dependabot's npm updater cannot parse. There is
-  # also no committed lockfile to anchor resolutions, so an npm entry would open
-  # PRs that bump package.json ranges without regenerating bun.lockb, leaving the
-  # tree in a drifted, manually-fixable state. Revisit if Dependabot adds native
-  # Bun support, or pin a lockfile and switch the ecosystem accordingly.
+  # The `bun` ecosystem, not `npm`: the lockfile is the text bun.lock, which
+  # Dependabot's bun updater regenerates alongside package.json. (The old note
+  # here predates the committed lockfile and assumed the binary bun.lockb.)
+  # CI installs with --frozen-lockfile, so a PR that bumps package.json
+  # without updating bun.lock fails rather than drifting.
+  - package-ecosystem: bun
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    ignore:
+      # Toolchain majors need a deliberate, tested migration, not an auto-bump.
+      # Same policy as ix-cursor-plugin and ix-openclaw-plugin. Scoped to
+      # version-updates, NOT a bare ignore, so security updates still come.
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
+      # bun-types must match the Bun that CI runs (`bun-version` in ci.yml),
+      # which Dependabot cannot bump. Move the two together, by hand.
+      - dependency-name: "bun-types"
+        update-types:
+          - "version-update:semver-major"
+          - "version-update:semver-minor"
+          - "version-update:semver-patch"
+    groups:
+      dev-dependencies:
+        dependency-type: development
+      production-dependencies:
+        dependency-type: production
