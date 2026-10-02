@@ -241,6 +241,10 @@ export const server: Plugin = async ({ directory }) => {
         description: ixSmells.description,
         args: {
           limit: tool.schema.number().optional().describe("Max results. Default: 50, max: 200"),
+          detect: tool.schema
+            .boolean()
+            .optional()
+            .describe("Re-run smell detection instead of reading stored claims; stores fresh claims for this workspace. Default: false"),
         },
         async execute(args, ctx) {
           return ixSmells.execute(args, { directory: ctx.directory, worktree: ctx.worktree });

@@ -488,7 +488,7 @@ describe("NonZeroExitAcrossTools", () => {
 // drive the tools that used to send those shapes.
 
 describe("RetiredCliShapes", () => {
-  test("ix-smells never sends --path (ix smells has no such flag), and only lists", async () => {
+  test("ix-smells never sends --path (ix smells has no such flag)", async () => {
     const output = await runNamedToolWithStub(
       "ix-smells.ts",
       { limit: 5 },
@@ -499,9 +499,8 @@ describe("RetiredCliShapes", () => {
 esac`,
     );
 
-    expect(output).toContain("No smell claims are stored for this graph.");
+    expect(output).toContain("No smells detected");
     expect(output).not.toContain("unknown option");
-    expect(output).not.toContain("refuses bare");
   });
 
   test("ix-ingest finds ix on PATH (Bun's shell has no `command -v`)", async () => {

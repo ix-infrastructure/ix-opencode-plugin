@@ -75,3 +75,8 @@ cover (`success/impact-*` are real medium/high/low records). Built from the shap
 file, `summary.{callers,callees}` for a function, `propagationBuckets[].region`,
 and for `impact-degraded.json` the `graph` block with `riskLevel: "unknown"`
 that Ix emits on a hollow graph.
+
+`synthetic/smells-run*.{json,txt}` are `ix smells` detection runs (no `--list`),
+built from `renderSmellsRunLlm` and the compact JSON in Ix's
+`ix-cli/src/cli/commands/smells.ts`. A real capture needs a detection run, which
+stores claims; the throwaway capture backend recorded only `--list` output.

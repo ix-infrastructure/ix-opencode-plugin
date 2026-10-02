@@ -1,0 +1,4 @@
+smells rev=12 count=3 version=smell_v1
+smell kind=has_smell.god_module file=runtime/cli.ts confidence=0.82 chunks=31 fan_in=51 fan_out=9
+smell kind=has_smell.orphan_file file=tools/ix-map.ts confidence=0.6 connections=0
+smell kind=has_smell.weak_component_member file=runtime/paths.ts confidence=0.55 neighbors=1

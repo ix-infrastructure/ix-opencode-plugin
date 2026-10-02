@@ -443,13 +443,15 @@ BLOCK outranks the REVIEW rows: a critical path is BLOCK even if another path co
 
 ### `ix-smells`
 
-**Purpose:** Report the architecture smells (orphan files, god modules, weak components) stored by the last `ix smells` run.
+**Purpose:** Report the architecture smells (orphan files, god modules, weak components) for the workspace's graph.
 
-**Parameters:** `limit` (default 50, max 200). `ix smells` has no path filter; it always covers the whole workspace.
+**Parameters:** `limit` (default 50, max 200); `detect` (default false) re-runs detection instead of reading stored claims. `ix smells` has no path filter; it always covers the whole workspace.
 
-**CLI:** `ix smells --list` (llm, else `--format json`: `{count, smells:[{smell, entity_id, confidence}]}`). Never bare `ix smells`, which re-runs detection and writes claims to the backend.
+**CLI:**
+1. `ix smells --list` (llm, else `--format json`: `{count, smells:[{smell, entity_id, confidence}]}`) reads the claims a previous detection run stored.
+2. When none are stored **and the graph is confirmed mapped**, or when `detect` is true, the tool runs `ix smells` (llm, else `--format json`: `{rev, count, candidates:[{file, smell, confidence, signals}]}`). Detection stores smell claims for this workspace only; the output says that it ran.
 
-**Zero claims is not "clean".** When `--list` returns none, the tool checks graph health (`ix status` → `graphCompleted`, `ix stats` → `nodes.total`) and says which it is: the graph is not mapped; Ix could not confirm it is; or it is mapped and no claims are stored (detection found none, or `ix smells` has not been run).
+**Zero claims is not "clean".** Before running detection the tool checks graph health (`ix status` → `graphCompleted`, `ix stats` → `nodes.total`). An unmapped graph, or one Ix cannot confirm is mapped, gets that answer and no detection run. "No smells detected" is reported only after a detection run on a mapped graph finds none.
 
 ---
 

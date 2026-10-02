@@ -486,16 +486,18 @@ describe("ix-decide on real output", () => {
 // ─── ix-smells ───────────────────────────────────────────────────────────────
 
 describe("ix-smells on real output", () => {
-  const listed = (smells: string, status: string, stats: string): Route[] => [
+  const listed = (smells: string, status: string, stats: string, run?: string): Route[] => [
     ["'smells --list '*", smells],
     ["'status '*", status],
     ["'stats '*", stats],
+    ...(run ? ([["'smells --format '*", run]] as Route[]) : []),
   ];
+  const detections = (calls: string[]) => calls.filter((c) => /\|smells\b/.test(c) && !c.includes("--list"));
 
   for (const llm of [false, true]) {
     const via = llm ? "llm path" : "JSON path";
 
-    test(`${via}: lists stored claims, and never runs detection`, async () => {
+    test(`${via}: lists stored claims, and does not re-run detection`, async () => {
       const { output, calls } = await runTool(
         "ix-smells.ts",
         {},
@@ -504,51 +506,79 @@ describe("ix-smells on real output", () => {
       );
       expect(output).toContain(llm ? "smells count=31" : "**31 smell claims stored**");
       expect(output).toContain(llm ? "smell kind=has_smell.god_module entity=34c179f9-815" : "### god_module (3)");
-      for (const call of calls.filter((c) => c.includes("|smells"))) expect(call).toContain("--list");
+      expect(detections(calls)).toEqual([]);
     });
 
-    test(`${via}: an empty, never-ingested repo is not mapped, not clean`, async () => {
-      const { output } = await runTool(
+    test(`${via}: an empty, never-ingested repo is not mapped, not clean, and is not scanned`, async () => {
+      const { output, calls } = await runTool(
         "ix-smells.ts",
         {},
         listed("empty-repo/smells-list", "empty-repo/status", "empty-repo/stats"),
         { llm },
       );
       expect(output).toContain("**The Ix graph for this project is not mapped**");
-      expect(output).not.toContain("clean.");
+      expect(output).not.toContain("No smells detected");
       expect(output).not.toContain("Architecture looks clean");
+      expect(detections(calls)).toEqual([]);
     });
 
     test(`${via}: a registered workspace the backend holds nothing for is not mapped`, async () => {
-      const { output } = await runTool(
+      const { output, calls } = await runTool(
         "ix-smells.ts",
         {},
         listed("empty-graph/smells-list", "empty-graph/status", "empty-graph/stats"),
         { llm },
       );
       expect(output).toContain("**The Ix graph for this project is not mapped**");
+      expect(detections(calls)).toEqual([]);
     });
 
-    test(`${via}: a mapped graph with no stored claims is not called clean either`, async () => {
-      const { output } = await runTool(
+    test(`${via}: a mapped graph with no stored claims runs detection and names files`, async () => {
+      const { output, calls } = await runTool(
         "ix-smells.ts",
         {},
-        listed("success/smells-list-before-run", "success/status", "success/stats"),
+        listed("success/smells-list-before-run", "success/status", "success/stats", "synthetic/smells-run"),
         { llm },
       );
-      expect(output).toContain("**No smell claims are stored for this graph.**");
-      expect(output).toContain("Run `ix smells`");
-      expect(output).not.toContain("Architecture looks clean");
+      expect(detections(calls)).toHaveLength(1);
+      expect(output).toContain(llm ? "smells rev=12 count=3" : "**3 smells detected**");
+      expect(output).toContain("runtime/cli.ts");
+      expect(output).toContain("No smell claims were stored, so this ran `ix smells` detection");
+      expect(output).not.toContain("No smells detected");
+    });
+
+    test(`${via}: "no smells" is only said after a detection run found none`, async () => {
+      const { output, calls } = await runTool(
+        "ix-smells.ts",
+        {},
+        listed("success/smells-list-before-run", "success/status", "success/stats", "synthetic/smells-run-empty"),
+        { llm },
+      );
+      expect(detections(calls)).toHaveLength(1);
+      expect(output).toContain("**No smells detected** on the mapped graph.");
+    });
+
+    test(`${via}: detect=true re-runs detection without reading stored claims`, async () => {
+      const { output, calls } = await runTool(
+        "ix-smells.ts",
+        { detect: true },
+        listed("success/smells-list", "success/status", "success/stats", "synthetic/smells-run"),
+        { llm },
+      );
+      expect(calls.filter((c) => c.includes("--list"))).toEqual([]);
+      expect(detections(calls)).toHaveLength(1);
+      expect(output).toContain("Fresh `ix smells` detection run");
     });
   }
 
-  test("graph health unknown: still not called clean", async () => {
-    const { output } = await runTool("ix-smells.ts", {}, [
+  test("graph health unknown: still not called clean, and not scanned", async () => {
+    const { output, calls } = await runTool("ix-smells.ts", {}, [
       ["'smells --list '*", "success/smells-list-before-run"],
       ["'status '*", null],
       ["'stats '*", null],
     ]);
     expect(output).toContain("Ix could not confirm the graph is mapped");
+    expect(detections(calls)).toEqual([]);
   });
 });
 
