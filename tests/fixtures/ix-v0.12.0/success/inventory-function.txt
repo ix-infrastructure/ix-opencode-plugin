@@ -1,0 +1,5 @@
+inventory kind=function scope=runtime shown=19
+file path=runtime/secrets.ts items=isHighEntropySecret,containsSecret,redactSecrets,redactHighEntropyTokens,scrubPayload
+file path=runtime/llm.ts items=resetLlmVersionCache,commandAllowsLlm,tryLlm,detectVersion,parseSemver,gte,llmDisabled,isLlmErrorLine
+file path=runtime/client.ts items=isRuntimeAvailable,callRuntime,getRuntime
+file path=runtime/cli.ts items=safeRun,runIx,failureDetail

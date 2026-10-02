@@ -1,0 +1,7 @@
+text shown=5 scanned=23 truncated=true
+diagnostic code=results_truncated message="23 matches scanned; showing the 5 highest-ranked. Narrow with --path or --language, or raise --limit."
+match path=runtime/cli.ts line=37 snippet="export async function runIx(cmd: ReturnType<typeof $>): Promise<IxRun | null> {"
+match path=runtime/cli.ts line=57 snippet="const run = await runIx(cmd);"
+match path=tools/ix-smells.ts line=12 snippet="import { runIx, failureDetail } from \"../runtime/cli.ts\";"
+match path=tools/ix-smells.ts line=54 snippet="const run = await runIx($`${args}`.cwd(dir));"
+match path=tools/ix-query.ts line=11 snippet="import { runIx, failureDetail } from \"../runtime/cli.ts\";"

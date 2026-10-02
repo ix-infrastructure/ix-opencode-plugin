@@ -1,0 +1,4 @@
+impact target=capitalize kind=function risk=low category=localized summary="Low risk — localized impact with limited propagation."
+behavior text="Limited to immediate callers"
+counts callers=1 callees=0
+caller name=fetchSection kind=function

@@ -9,6 +9,7 @@
 
 import { runIx, safeRun, failureDetail } from "../runtime/cli.ts";
 import { formatIxError, parseIxError } from "../runtime/ix-error.ts";
+import { toolCwd } from "../runtime/paths.ts";
 
 export const name = "ix-impact";
 export const description =
@@ -38,7 +39,7 @@ export async function execute(
   params: Params,
   context: Context
 ): Promise<string> {
-  const dir = context.worktree ?? context.directory;
+  const dir = toolCwd(context);
 
   const run = await runIx(["impact", params.target, "--format", "json"], dir);
   if (!run?.stdout.trim()) return unavailable(params.target, failureDetail(run));
@@ -49,48 +50,68 @@ export async function execute(
   const ixErr = parseIxError(impactOutput);
   if (ixErr) return formatIxError(`## ix-impact: ${params.target}`, ixErr);
 
-  let impact: {
-    target?: string;
-    risk?: string;
-    dependentCount?: number;
-    transitiveCount?: number;
-    atRiskBehaviors?: string[];
-    subsystems?: string[];
-  };
+  let impact: ImpactRecord;
   try {
     impact = JSON.parse(impactOutput);
   } catch {
     return `**ix-impact: ${params.target}**\n\nFailed to parse impact output.\n\`\`\`\n${impactOutput.slice(0, 500)}\n\`\`\``;
   }
 
-  const risk = (impact.risk ?? "unknown").toLowerCase();
-  const dependentCount = impact.dependentCount ?? 0;
+  const risk = typeof impact.riskLevel === "string" ? impact.riskLevel.toLowerCase() : "unknown";
+  const summary = impact.summary ?? {};
+  const isContainer = typeof summary.callers !== "number";
+  const dependentCount = dependentsOf(summary);
+  const subsystems = [
+    ...new Set(
+      (impact.propagationBuckets ?? [])
+        .map((b) => b.region)
+        .filter((r): r is string => typeof r === "string" && r !== "(unmapped)"),
+    ),
+  ];
+  const base = {
+    target: params.target,
+    risk,
+    riskSummary: impact.riskSummary,
+    summary,
+    dependentCount,
+    atRiskBehaviors: impact.atRiskBehavior,
+    subsystems,
+    graph: impact.graph,
+  };
+
+  // Ix withholds a risk level it cannot compute (a hollow or empty graph says
+  // `riskLevel: "unknown"` with a `graph` verdict). That is not a low risk.
+  if (!RISK_LEVELS.includes(risk)) {
+    return formatReport({ ...base, verdict: "CANNOT ASSESS", callers: [] });
+  }
 
   // Phase 1 result — for low risk with few dependents, stop here
   if (risk === "low" && dependentCount < 3) {
-    return formatReport({
-      target: params.target,
-      risk,
-      verdict: "SAFE TO PROCEED",
-      dependentCount,
-      transitiveCount: impact.transitiveCount,
-      atRiskBehaviors: impact.atRiskBehaviors,
-      callers: [],
-      subsystems: impact.subsystems,
-    });
+    return formatReport({ ...base, verdict: "SAFE TO PROCEED", callers: [] });
   }
 
-  // Phase 2 — fetch callers for medium/high/critical
-  let callers: { name: string; subsystem?: string; file?: string }[] = [];
-  try {
-    // `ix callers` is in the set Ix#547 makes exit 1 on an unresolved target
-    // while still printing the record.
-    const callersOutput = await safeRun(["callers", params.target, "--limit", "20", "--format", "json"], dir);
-    if (callersOutput === null) throw new Error("no output");
-    const parsed = JSON.parse(callersOutput);
-    callers = parsed.items ?? [];
-  } catch {
-    // callers unavailable — continue with what we have
+  // Phase 2 — the callers to check. A file or class has no callers of its own;
+  // its most-called members are what a change reaches, and Ix already listed
+  // them. A function's callers come from `ix callers`.
+  let callers: Caller[] = [];
+  if (isContainer) {
+    callers = (impact.topImpactedMembers ?? []).map((m) => ({
+      name: m.name ?? "?",
+      path: m.path,
+      note: typeof m.callerCount === "number" ? `${m.callerCount} callers` : undefined,
+    }));
+  } else {
+    try {
+      // `ix callers` is in the set Ix#547 makes exit 1 on an unresolved target
+      // while still printing the record.
+      const callersOutput = await safeRun(["callers", params.target, "--limit", "20", "--format", "json"], dir);
+      if (callersOutput === null) throw new Error("no output");
+      const parsed = JSON.parse(callersOutput) as { results?: { name?: string; path?: string }[] };
+      callers = (parsed.results ?? []).map((c) => ({ name: c.name ?? "?", path: c.path }));
+    } catch {
+      // callers unavailable — fall back to the names impact listed
+      callers = (impact.callerList ?? []).map((c) => ({ name: c.name ?? "?" }));
+    }
   }
 
   const verdict =
@@ -100,27 +121,57 @@ export async function execute(
       ? "REVIEW CALLERS FIRST"
       : "NEEDS CHANGE PLAN";
 
-  return formatReport({
-    target: params.target,
-    risk,
-    verdict,
-    dependentCount,
-    transitiveCount: impact.transitiveCount,
-    atRiskBehaviors: impact.atRiskBehaviors,
-    callers,
-    subsystems: impact.subsystems,
-  });
+  return formatReport({ ...base, verdict, callers });
+}
+
+const RISK_LEVELS: readonly string[] = ["low", "medium", "high", "critical"];
+
+/**
+ * The fields `ix impact --format json` emits (Ix ix-cli/src/cli/commands/
+ * impact.ts): `riskLevel`, and under `summary` either `callers`/`callees` (a
+ * function) or `members`/`directImporters`/`directDependents`/
+ * `memberLevelCallers` (a file, class or other container).
+ */
+type ImpactRecord = {
+  riskLevel?: string;
+  riskSummary?: string;
+  atRiskBehavior?: string[];
+  summary?: ImpactSummary;
+  callerList?: { name?: string; kind?: string }[];
+  topImpactedMembers?: { name?: string; path?: string; callerCount?: number }[];
+  propagationBuckets?: { region?: string; count?: number }[];
+  graph?: { status?: string; message?: string; fix?: string };
+};
+
+type ImpactSummary = {
+  callers?: number;
+  callees?: number;
+  members?: number;
+  directImporters?: number;
+  directDependents?: number;
+  memberLevelCallers?: number;
+};
+
+type Caller = { name: string; path?: string; note?: string };
+
+/** Everything that reaches the target: the same total Ix's risk inference uses. */
+function dependentsOf(s: ImpactSummary): number {
+  return [s.callers, s.directImporters, s.directDependents, s.memberLevelCallers]
+    .filter((n): n is number => typeof n === "number")
+    .reduce((a, b) => a + b, 0);
 }
 
 type ReportArgs = {
   target: string;
   risk: string;
+  riskSummary?: string;
   verdict: string;
+  summary: ImpactSummary;
   dependentCount: number;
-  transitiveCount?: number;
   atRiskBehaviors?: string[];
-  callers: { name: string; subsystem?: string; file?: string }[];
-  subsystems?: string[];
+  callers: Caller[];
+  subsystems: string[];
+  graph?: { status?: string; message?: string; fix?: string };
 };
 
 function formatReport(r: ReportArgs): string {
@@ -129,23 +180,37 @@ function formatReport(r: ReportArgs): string {
     "",
     `**Risk level:** ${r.risk.toUpperCase()}`,
     `**Verdict:** ${r.verdict}`,
-    "",
-    "**Blast radius:**",
-    `- Direct dependents: ${r.dependentCount}`,
   ];
+  if (r.riskSummary) lines.push(`**Summary:** ${r.riskSummary}`);
+  lines.push("", "**Blast radius:**");
 
-  if (r.transitiveCount !== undefined) {
-    lines.push(`- Transitive (depth 2): ${r.transitiveCount}`);
+  const s = r.summary;
+  if (typeof s.callers === "number") {
+    lines.push(`- Direct callers: ${s.callers}`);
+    if (typeof s.callees === "number") lines.push(`- Callees: ${s.callees}`);
+  } else {
+    if (typeof s.directImporters === "number") lines.push(`- Direct importers: ${s.directImporters}`);
+    if (typeof s.directDependents === "number") lines.push(`- Direct dependents: ${s.directDependents}`);
+    if (typeof s.memberLevelCallers === "number") lines.push(`- Callers of its members: ${s.memberLevelCallers}`);
+    if (typeof s.members === "number") lines.push(`- Members: ${s.members}`);
   }
-  if (r.subsystems && r.subsystems.length > 0) {
+  lines.push(`- Total reaching it: ${r.dependentCount}`);
+
+  if (r.subsystems.length > 0) {
     lines.push(`- Subsystems affected: ${r.subsystems.join(", ")}`);
+  }
+
+  if (r.graph?.status && r.graph.status !== "ok") {
+    lines.push("", `**Graph:** ${r.graph.status}${r.graph.message ? ` — ${r.graph.message}` : ""}`);
+    if (r.graph.fix) lines.push(`Ix's fix: \`${r.graph.fix}\``);
   }
 
   if (r.callers.length > 0) {
     lines.push("", "**Key callers:**");
     for (const c of r.callers.slice(0, 5)) {
-      const label = c.subsystem ? ` [${c.subsystem}]` : "";
-      lines.push(`- \`${c.name}\`${label}`);
+      const where = c.path ? ` — ${c.path}` : "";
+      const note = c.note ? ` (${c.note})` : "";
+      lines.push(`- \`${c.name}\`${note}${where}`);
     }
   }
 
@@ -157,15 +222,13 @@ function formatReport(r: ReportArgs): string {
   }
 
   lines.push("", "**Recommended action:**");
-  if (r.risk === "low") {
+  if (!RISK_LEVELS.includes(r.risk)) {
+    lines.push("- Ix could not compute a risk level, so this is not a clearance. Repair the graph (`ix map`), then re-run.");
+  } else if (r.risk === "low") {
     lines.push("- Safe to proceed. Verify callers after change.");
   } else if (r.risk === "medium") {
-    lines.push(
-      `- Test ${r.callers
-        .slice(0, 3)
-        .map((c) => `\`${c.name}\``)
-        .join(", ")} after change.`
-    );
+    const named = r.callers.slice(0, 3).map((c) => `\`${c.name}\``);
+    lines.push(named.length > 0 ? `- Test ${named.join(", ")} after change.` : "- Review the callers and run tests after this change.");
   } else {
     lines.push("- Run `/ix-plan` before editing. This change needs a sequenced plan.");
   }

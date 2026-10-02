@@ -11,7 +11,8 @@ API reference for all 7 Ix tools. Each tool calls the `ix` CLI and returns a for
 3. **Fallback:** if `ix` is unavailable, return a helpful error with recovery steps rather than throwing
 4. **Ix error records:** since Ix v0.12.0 a read that cannot answer prints an error record on stdout and exits 1 — `{"error":"<code>","message":"…"}` in JSON, `error code=<code> message="…"` in llm. Tools recognise it with `runtime/ix-error.ts` and return **`Ix returned an error`** with the code, the message and Ix's own fix, never a "nothing found" or "clean" result. For `workspace_not_mapped`, or a `graph.status` of `empty`/`degraded`, the text says the project is not mapped and to run `ix map` from the project root (or `ix-ingest` with `refresh: true`). This is distinct from rule 3: there Ix said nothing (not installed, timed out, no output) and the tool reports **`ix unavailable`**.
 5. **Depth scaling:** heavier analysis phases run only when lighter phases indicate they're needed
-6. **Directory:** all `ix` CLI calls run in `context.worktree ?? context.directory`
+6. **Directory:** all `ix` CLI calls run in `toolCwd(context)` (`runtime/paths.ts`): `context.directory`, the directory the session was opened in. OpenCode's `worktree` is `/` for a project outside git, so it is only a fallback when `directory` is missing, and never when it is a filesystem root.
+7. **Fields:** tools read the fields `ix --format json` actually emits; `tests/success-fixtures.test.ts` drives every tool through real CLI output (`tests/fixtures/ix-v0.12.0/success/`).
 
 The string-only output constraint comes from the OpenCode runtime. Returning objects from tools has caused runtime issues in practice.
 
@@ -116,38 +117,40 @@ Error: <error message>
 | `target` | string | yes | Symbol name or file path to assess |
 
 **Behavior:**
-1. Runs `ix impact <target>` — gets risk level and dependent count
-2. **Low risk + < 3 dependents:** stops here, returns safe-to-proceed verdict
-3. **Medium/high/critical:** also runs `ix callers <target> --limit 20` for key callers
+1. Runs `ix impact <target> --format json` — reads `riskLevel`, `riskSummary`, `atRiskBehavior`, `propagationBuckets[].region`, and the counts under `summary`: `callers`/`callees` for a function, `directImporters`/`directDependents`/`memberLevelCallers`/`members` for a file or other container. "Total reaching it" is their sum.
+2. **Low risk + < 3 reaching it:** stops here, returns safe-to-proceed verdict
+3. **Medium/high/critical:** for a function, also runs `ix callers <target> --limit 20` (`results[]`) for key callers; for a file, lists Ix's `topImpactedMembers`
 4. Returns risk report with verdict and recommended action
 
-Risk levels: `low` → `SAFE TO PROCEED`, `medium` → `REVIEW CALLERS FIRST`, `high`/`critical` → `NEEDS CHANGE PLAN`
+Risk levels: `low` → `SAFE TO PROCEED`, `medium` → `REVIEW CALLERS FIRST`, `high`/`critical` → `NEEDS CHANGE PLAN`. A withheld `riskLevel: "unknown"` (hollow or empty graph) → `CANNOT ASSESS`, with Ix's `graph` verdict and fix.
 
 **Example output:**
 ```
-## Impact: PaymentProcessor
+## Impact: runtime/cli.ts
 
 **Risk level:** HIGH
 **Verdict:** NEEDS CHANGE PLAN
+**Summary:** High risk — widely shared dependency affecting the tools layer and impact analysis layer.
 
 **Blast radius:**
-- Direct dependents: 18
-- Transitive (depth 2): 42
-- Subsystems affected: billing, api, webhooks
+- Direct importers: 18
+- Direct dependents: 0
+- Callers of its members: 33
+- Members: 4
+- Total reaching it: 51
+- Subsystems affected: Runtime, Explain, Plugins, Impact
 
 **Key callers:**
-- `CheckoutService` [billing]
-- `RefundHandler` [billing]
-- `WebhookDispatcher` [webhooks]
-- `PaymentRouter` [api]
-- `AdminBillingController` [api]
+- `safeRun` (12 callers) — runtime/cli.ts
+- `runIx` (11 callers) — runtime/cli.ts
+- `failureDetail` (10 callers) — runtime/cli.ts
 
 **At-risk behaviors:**
-- payment state transitions
-- idempotency key validation
+- Multiple callers across different subsystems
+- Cross-module behavior consistency
 
 **Recommended action:**
-- Run `/ix-plan PaymentProcessor` before editing. This change needs a sequenced plan.
+- Run `/ix-plan` before editing. This change needs a sequenced plan.
 ```
 
 ---
@@ -165,27 +168,27 @@ Risk levels: `low` → `SAFE TO PROCEED`, `medium` → `REVIEW CALLERS FIRST`, `
 
 **Behavior:**
 - Runs `ix subsystems`, `ix subsystems --list`, and `ix stats` in parallel
-- Builds a subsystem table with cohesion/coupling scores
-- Flags subsystems with low cohesion (< 0.4) or high coupling (> 0.5) with ⚠
+- Builds a subsystem table from `regions[]` (`label`, `label_kind`, `level`, `files`, `cohesion`, `coupling`, `confidence`); with `scope`, renders the `target` region and its `children` instead
+- Lists `scores[]` from `ix subsystems --list` as subsystem health
+- Takes the file count from `stats.nodes.byKind` (kind `file`) and totals from `nodes.total` / `edges.total`
+- Flags multi-file subsystems with low cohesion (< 0.4) with ⚠. Ix's `coupling` is an edge-weight count, not a 0–1 ratio, so it is shown but not judged
 
 **Example output:**
 ```
 ## ix-map
 
-**Codebase:** 312 files · 4,821 nodes · 18,432 edges · TypeScript
+**Codebase:** 55 files · 870 nodes · 1745 edges
 
-**Subsystems** (6):
+**Subsystems** (11, 38 files):
 
-| Subsystem | Path | Files | Cohesion | Coupling |
-|-----------|------|-------|----------|----------|
-| auth      | src/auth | 48 | 0.71 | 0.22 |
-| api       | src/api  | 61 | 0.68 | 0.31 |
-| models ⚠  | src/models | 82 | 0.34 | 0.58 |
-| services  | src/services | 55 | 0.62 | 0.28 |
-| utils     | src/utils | 33 | 0.81 | 0.09 |
-| billing   | src/billing | 33 | 0.74 | 0.35 |
+| Subsystem | Kind | Level | Files | Cohesion | Coupling | Confidence |
+|-----------|------|-------|-------|----------|----------|------------|
+| Explain | module | 1 | 7 | 0.45 | 28.98 | 0.38 |
+| Impact | module | 1 | 5 | 0.67 | 33.74 | 0.34 |
+| Runtime | module | 1 | 8 | 0.40 | 29.16 | 0.40 |
+| Tools ⚠ | system | 5 | 24 | 0.31 | 0 | 0.78 |
 
-**Subsystem names:** auth, api, models, services, utils, billing
+**Subsystem health:** Tools (0.63), Agents (0.59), Runtime (0.52), Explain (0.51), Impact (0.50)
 ```
 
 ---
@@ -204,7 +207,8 @@ Risk levels: `low` → `SAFE TO PROCEED`, `medium` → `REVIEW CALLERS FIRST`, `
 **Behavior (status check):**
 - Runs `ix status --format json` if available
 - Falls back to probing `ix subsystems --list` if `ix status` is unavailable
-- Reports connectivity, graph presence, file count, and freshness
+- Reads `backend`, `graphCompleted`, `mapCompleted`, `currentRev`, `lastIngestAt`, `staleFiles`, `sampleChangedFiles`; `graphCompleted: false` is reported as not mapped
+- The probe reads `scores[].name` from `ix subsystems --list`
 
 **Behavior (refresh):**
 - Runs `ix map` (or `ix map --silent`)
@@ -214,10 +218,9 @@ Risk levels: `low` → `SAFE TO PROCEED`, `medium` → `REVIEW CALLERS FIRST`, `
 ```
 ## ix-ingest: status
 
-**Connected:** yes
-**Graph present:** yes
-**Files indexed:** 312
-**Last updated:** 2026-04-09T14:32:00Z
+**Backend:** ok
+**Graph:** ingested (rev 1)
+**Last ingest:** 2026-10-02T01:14:41.855Z
 **Freshness:** current
 ```
 
@@ -308,29 +311,25 @@ Graph-based features (ix-query, ix-neighbors, ix-impact, ix-map) work without Pr
 | Depth | What runs |
 |---|---|
 | `brief` | `ix locate` + `ix overview` only |
-| `standard` | above + `ix explain` for top 5 key components |
+| `standard` | above + `ix stats`, and `ix explain` for the first 5 of overview's `keyItems` |
 | `full` | above + `ix impact` for change risk context |
 
 **Example output (standard):**
 ```
-## Context: billing
+## Context: runtime/cli.ts
 
-_33 files · TypeScript_
+_55 files · 870 nodes_
 
-**Kind:** subsystem
-**Path:** src/billing
-**Files:** 33
-**Members:** 12
-
-Handles payment processing, subscription management, and invoice generation. Depends on the Stripe API adapter and the models subsystem.
+**Kind:** file
+**Path:** runtime/cli.ts
+**Subsystem:** Tools › Impact
+**Contains:** 1 interface, 3 functions
 
 **Key Components:**
 
-- `PaymentProcessor` (14 callers) — orchestrates payment flow
-- `SubscriptionManager` (9 callers) — manages plan lifecycle
-- `InvoiceBuilder` (6 callers) — generates and formats invoices
-- `StripeAdapter` (11 callers) — Stripe API boundary
-- `BillingRepository` (8 callers) — persistence layer
+- `safeRun` (12 callers) — shared-utility
+- `runIx` (11 callers) — shared-utility
+- `failureDetail` (10 callers) — shared-utility
 ```
 
 ---
@@ -444,11 +443,15 @@ BLOCK outranks the REVIEW rows: a critical path is BLOCK even if another path co
 
 ### `ix-smells`
 
-**Purpose:** Detect architecture smells — orphan files, high coupling, low cohesion, dead code, and other structural issues.
+**Purpose:** Report the architecture smells (orphan files, god modules, weak components) for the workspace's graph.
 
-**Parameters:** `limit` (default 50, max 200). `ix smells` has no path filter; it always covers the whole workspace.
+**Parameters:** `limit` (default 50, max 200); `detect` (default false) re-runs detection instead of reading stored claims. `ix smells` has no path filter; it always covers the whole workspace.
 
-**CLI:** `ix smells --format json`
+**CLI:**
+1. `ix smells --list` (llm, else `--format json`: `{count, smells:[{smell, entity_id, confidence}]}`) reads the claims a previous detection run stored.
+2. When none are stored **and the graph is confirmed mapped**, or when `detect` is true, the tool runs `ix smells` (llm, else `--format json`: `{rev, count, candidates:[{file, smell, confidence, signals}]}`). Detection stores smell claims for this workspace only; the output says that it ran.
+
+**Zero claims is not "clean".** Before running detection the tool checks graph health (`ix status` → `graphCompleted`, `ix stats` → `nodes.total`). An unmapped graph, or one Ix cannot confirm is mapped, gets that answer and no detection run. "No smells detected" is reported only after a detection run on a mapped graph finds none.
 
 ---
 
@@ -458,7 +461,8 @@ To add a tool to the plugin:
 
 1. Create `tools/<name>.ts` following this template:
    ```typescript
-   import { $ } from "bun";
+   import { runIx } from "../runtime/cli.ts";
+   import { toolCwd } from "../runtime/paths.ts";
 
    export const name = "ix-<name>";
    export const description = "...";
@@ -468,7 +472,7 @@ To add a tool to the plugin:
    type Context = { directory: string; worktree?: string };
 
    export async function execute(params: Params, context: Context): Promise<string> {
-     const dir = context.worktree ?? context.directory;
+     const dir = toolCwd(context);
      // call ix CLI, format output as markdown string
      // always return a string — never throw on ix errors
    }
@@ -483,6 +487,7 @@ To add a tool to the plugin:
 3. Follow the contract:
    - Always return a string
    - Handle `ix` unavailability gracefully
-   - Use `context.worktree ?? context.directory` as the working directory
+   - Use `toolCwd(context)` as the working directory (never a bare `context.worktree`, which is `/` outside git)
+   - Add a test that drives the tool through real `ix` output (`tests/success-fixtures.test.ts`)
    - Format output as structured markdown (headers, bullets, tables)
    - Include the tool name and target in the first heading: `## ix-<name>: <target>`

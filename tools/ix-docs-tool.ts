@@ -10,6 +10,7 @@
 
 import { safeRun } from "../runtime/cli.ts";
 import { formatIxError, parseIxError } from "../runtime/ix-error.ts";
+import { toolCwd } from "../runtime/paths.ts";
 
 export const name = "ix-docs-tool";
 export const description =
@@ -47,7 +48,7 @@ export async function execute(
   params: Params,
   context: Context
 ): Promise<string> {
-  const dir = context.worktree ?? context.directory;
+  const dir = toolCwd(context);
   const depth = params.depth ?? "standard";
 
   // Phase 1: locate + overview in parallel
@@ -78,19 +79,35 @@ export async function execute(
     if (ixErr) return formatIxError(`## ix-docs-tool: ${params.target}`, ixErr);
   }
 
+  // Neither lookup resolved the target (`resolvedTarget: null`): say so rather
+  // than return an empty briefing.
+  if (!resolves(locateOut) && !resolves(overviewErr ? null : overviewOut)) {
+    const ixErr = overviewErr ?? locateErr;
+    if (ixErr) return formatIxError(`## ix-docs-tool: ${params.target}`, ixErr);
+    return [
+      `## ix-docs-tool: ${params.target}`,
+      "",
+      "**Not found in graph.** No entity by that name is indexed.",
+      "",
+      "Try: `ix locate` to check the exact name, or `ix map` to refresh.",
+    ].join("\n");
+  }
+
   const sections: string[] = [
     `## Context: ${params.target}`,
     "",
   ];
 
-  // Stats
-  if (statsOut) {
+  // Stats: counts are objects (`nodes.total`), and files are one node kind.
+  if (statsOut && !parseIxError(statsOut)) {
     try {
-      const stats = JSON.parse(statsOut);
+      const stats = JSON.parse(statsOut) as {
+        nodes?: { total?: number; byKind?: { kind?: string; count?: number }[] };
+      };
       const parts: string[] = [];
-      if (stats.files) parts.push(`${stats.files} files`);
-      if (stats.nodes) parts.push(`${stats.nodes} nodes`);
-      if (stats.language) parts.push(stats.language);
+      const files = stats.nodes?.byKind?.find((e) => e.kind === "file")?.count;
+      if (files) parts.push(`${files} files`);
+      if (stats.nodes?.total) parts.push(`${stats.nodes.total} nodes`);
       if (parts.length > 0) sections.push(`_${parts.join(" · ")}_`, "");
     } catch {
       // ignore
@@ -98,12 +115,13 @@ export async function execute(
   }
 
   // Overview
-  if (overviewOut) {
+  let overview: OverviewRecord | null = null;
+  if (overviewOut && !overviewErr) {
     try {
-      const overview = JSON.parse(overviewOut);
+      overview = JSON.parse(overviewOut) as OverviewRecord;
       sections.push(formatOverview(overview));
     } catch {
-      // fallback
+      overview = null;
     }
   }
 
@@ -111,35 +129,38 @@ export async function execute(
     return sections.join("\n");
   }
 
-  // Phase 2: explain key components
-  let components: string[] = [];
-  if (overviewOut) {
-    try {
-      const overview = JSON.parse(overviewOut);
-      const members = overview.members ?? overview.components ?? [];
-      components = members.slice(0, depth === "full" ? 8 : 5).map(
-        (m: { name?: string }) => m.name ?? ""
-      ).filter(Boolean);
-    } catch {
-      // no components
-    }
-  }
+  // Phase 2: explain key components. `keyItems` are what a file or class
+  // contains; a function has none, and its `keySiblings` are not components.
+  const components = (overview?.keyItems ?? [])
+    .slice(0, depth === "full" ? 8 : 5)
+    .map((m) => m.name ?? "")
+    .filter(Boolean);
 
   if (components.length > 0) {
+    const scopePath = overview?.path;
     const explains = await Promise.all(
       components.map((c) =>
-        safeRun(["explain", c, "--format", "json"], dir)
+        safeRun(
+          scopePath ? ["explain", c, "--path", scopePath, "--format", "json"] : ["explain", c, "--format", "json"],
+          dir,
+        )
       )
     );
 
     const componentLines = ["**Key Components:**", ""];
     for (let i = 0; i < components.length; i++) {
       const out = explains[i];
-      if (!out) continue;
+      if (!out || parseIxError(out)) {
+        componentLines.push(`- \`${components[i]}\``);
+        continue;
+      }
       try {
-        const e = JSON.parse(out);
-        const role = e.role ? ` — ${e.role}` : "";
-        const callers = e.callerCount !== undefined ? ` (${e.callerCount} callers)` : "";
+        const e = JSON.parse(out) as {
+          role?: { role?: string };
+          facts?: { callerCount?: number };
+        };
+        const role = e.role?.role ? ` — ${e.role.role}` : "";
+        const callers = e.facts?.callerCount !== undefined ? ` (${e.facts.callerCount} callers)` : "";
         componentLines.push(`- \`${components[i]}\`${callers}${role}`);
       } catch {
         componentLines.push(`- \`${components[i]}\``);
@@ -151,13 +172,19 @@ export async function execute(
   if (depth === "full") {
     // Phase 3: impact for context
     const impactOut = await safeRun(["impact", params.target, "--format", "json"], dir);
-    if (impactOut) {
+    if (impactOut && !parseIxError(impactOut)) {
       try {
-        const impact = JSON.parse(impactOut);
-        const risk = impact.risk ?? "unknown";
-        const dependents = impact.dependentCount ?? 0;
+        const impact = JSON.parse(impactOut) as {
+          riskLevel?: string;
+          summary?: Record<string, unknown>;
+        };
+        const risk = impact.riskLevel ?? "unknown";
+        const reaching = ["callers", "directImporters", "directDependents", "memberLevelCallers"]
+          .map((k) => impact.summary?.[k])
+          .filter((n): n is number => typeof n === "number")
+          .reduce((a, b) => a + b, 0);
         sections.push(
-          `**Change risk:** ${risk.toUpperCase()} (${dependents} direct dependents)`,
+          `**Change risk:** ${risk.toUpperCase()} (${reaching} callers/importers/dependents reach it)`,
           ""
         );
       } catch {
@@ -169,29 +196,44 @@ export async function execute(
   return sections.join("\n");
 }
 
-function formatOverview(overview: {
-  name?: string;
-  kind?: string;
+/** True when a locate/overview JSON body names the entity it resolved to. */
+function resolves(output: string | null): boolean {
+  if (!output) return false;
+  try {
+    const parsed = JSON.parse(output) as { resolvedTarget?: unknown };
+    return Boolean(parsed.resolvedTarget);
+  } catch {
+    return false;
+  }
+}
+
+/** The fields of `ix overview --format json` this tool reads (Ix commands/overview.ts). */
+type OverviewRecord = {
+  resolvedTarget?: { kind?: string; name?: string } | null;
   path?: string;
-  summary?: string;
-  purpose?: string;
-  fileCount?: number;
-  memberCount?: number;
-  subsystem?: string;
-}): string {
+  systemPath?: { name?: string; kind?: string }[] | null;
+  childrenByKind?: Record<string, number> | null;
+  keyItems?: { name?: string; kind?: string }[] | null;
+  containedIn?: { kind?: string; name?: string } | null;
+};
+
+function formatOverview(overview: OverviewRecord): string {
   const lines: string[] = [];
 
-  if (overview.kind) lines.push(`**Kind:** ${overview.kind}`);
+  const target = overview.resolvedTarget;
+  if (target?.kind) lines.push(`**Kind:** ${target.kind}`);
   if (overview.path) lines.push(`**Path:** ${overview.path}`);
-  if (overview.subsystem) lines.push(`**Subsystem:** ${overview.subsystem}`);
-  if (overview.fileCount !== undefined)
-    lines.push(`**Files:** ${overview.fileCount}`);
-  if (overview.memberCount !== undefined)
-    lines.push(`**Members:** ${overview.memberCount}`);
-
-  const summary = overview.summary ?? overview.purpose;
-  if (summary) lines.push("", summary);
+  const regions = (overview.systemPath ?? [])
+    .filter((p) => p.kind === "region" || p.kind === "system" || p.kind === "subsystem")
+    .map((p) => p.name)
+    .filter(Boolean);
+  if (regions.length > 0) lines.push(`**Subsystem:** ${regions.join(" › ")}`);
+  if (overview.containedIn?.name) {
+    lines.push(`**Contained in:** ${overview.containedIn.kind ?? ""} ${overview.containedIn.name}`.replace("  ", " "));
+  }
+  const children = overview.childrenByKind ?? {};
+  const childParts = Object.entries(children).map(([k, n]) => `${n} ${k}${n === 1 ? "" : "s"}`);
+  if (childParts.length > 0) lines.push(`**Contains:** ${childParts.join(", ")}`);
 
   return lines.join("\n") + "\n";
 }
-

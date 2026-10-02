@@ -10,6 +10,7 @@
 import { runIx, safeRun, failureDetail } from "../runtime/cli.ts";
 import { resolveGitRoot, isUnmappableRoot } from "../runtime/automap.ts";
 import { formatIxError, parseIxError } from "../runtime/ix-error.ts";
+import { toolCwd } from "../runtime/paths.ts";
 
 // An explicit rebuild can take minutes on a large repo; it is still bounded.
 const REFRESH_TIMEOUT_MS = 10 * 60_000;
@@ -51,7 +52,7 @@ export async function execute(
   params: Params,
   context: Context
 ): Promise<string> {
-  const dir = context.worktree ?? context.directory;
+  const dir = toolCwd(context);
 
   // Bun's shell has no `command` builtin, so `$\`command -v ix\`` threw on
   // every machine and this tool reported "ix CLI not found" unconditionally.
@@ -69,14 +70,7 @@ export async function execute(
   const statusErr = parseIxError(statusOutput);
   if (statusErr) return formatIxError("## ix-ingest: status", statusErr);
 
-  let status: {
-    connected?: boolean;
-    graphPresent?: boolean;
-    lastUpdated?: string;
-    fileCount?: number;
-    staleness?: string;
-    recommendation?: string;
-  };
+  let status: StatusRecord;
   try {
     status = JSON.parse(statusOutput);
   } catch {
@@ -131,8 +125,9 @@ async function probeStatus(dir: string): Promise<string> {
     if (output === null) throw new Error("no output");
     const ixErr = parseIxError(output);
     if (ixErr) return formatIxError("## ix-ingest: status", ixErr);
-    const parsed = JSON.parse(output);
-    const names: string[] = parsed.names ?? parsed.list ?? [];
+    // `{"scores":[{"name",...}]}` -- the stored subsystem health scores.
+    const parsed = JSON.parse(output) as { scores?: { name?: string }[] };
+    const names = (parsed.scores ?? []).map((s) => s.name).filter((n): n is string => typeof n === "string");
 
     if (names.length === 0) {
       return [
@@ -167,37 +162,49 @@ async function probeStatus(dir: string): Promise<string> {
   }
 }
 
-function formatStatus(status: {
-  connected?: boolean;
-  graphPresent?: boolean;
-  lastUpdated?: string;
-  fileCount?: number;
-  staleness?: string;
-  recommendation?: string;
-}): string {
+/**
+ * `ix status --format json` (Ix commands/status.ts). `graphCompleted` is false
+ * until a source ingest of this workspace has finished; `staleFiles` counts
+ * files changed since it.
+ */
+type StatusRecord = {
+  backend?: string;
+  graphCompleted?: boolean | null;
+  mapCompleted?: boolean | null;
+  currentRev?: number | null;
+  lastIngestAt?: string | null;
+  staleFiles?: number;
+  sampleChangedFiles?: string[];
+};
+
+function formatStatus(status: StatusRecord): string {
   const lines = ["## ix-ingest: status", ""];
 
-  if (status.connected !== undefined) {
-    lines.push(
-      `**Connected:** ${status.connected ? "yes" : "no ⚠"}`
-    );
+  if (status.backend !== undefined) {
+    lines.push(`**Backend:** ${status.backend === "ok" ? "ok" : `${status.backend} ⚠`}`);
   }
-  if (status.graphPresent !== undefined) {
-    lines.push(
-      `**Graph present:** ${status.graphPresent ? "yes" : "no — run `ix map`"}`
-    );
+  if (status.graphCompleted === true) {
+    lines.push(`**Graph:** ingested${typeof status.currentRev === "number" ? ` (rev ${status.currentRev})` : ""}`);
+  } else if (status.graphCompleted === false) {
+    lines.push("**Graph:** not mapped — no completed ingest for this workspace. Run `ix map` (or this tool with `refresh: true`).");
   }
-  if (status.fileCount !== undefined) {
-    lines.push(`**Files indexed:** ${status.fileCount}`);
+  if (status.mapCompleted === false && status.graphCompleted) {
+    lines.push("**Architecture map:** not built — run `ix map`.");
   }
-  if (status.lastUpdated) {
-    lines.push(`**Last updated:** ${status.lastUpdated}`);
+  if (status.lastIngestAt) {
+    lines.push(`**Last ingest:** ${status.lastIngestAt}`);
   }
-  if (status.staleness) {
-    lines.push(`**Freshness:** ${status.staleness}`);
-  }
-  if (status.recommendation) {
-    lines.push("", `**Recommendation:** ${status.recommendation}`);
+  if (typeof status.staleFiles === "number") {
+    if (status.staleFiles > 0) {
+      const sample = (status.sampleChangedFiles ?? []).slice(0, 5);
+      lines.push(
+        `**Freshness:** ${status.staleFiles} file${status.staleFiles === 1 ? "" : "s"} changed since the last ingest${sample.length > 0 ? ` (${sample.join(", ")})` : ""}`,
+        "",
+        "**Recommendation:** refresh the graph (`ix map`, or this tool with `refresh: true`).",
+      );
+    } else if (status.graphCompleted) {
+      lines.push("**Freshness:** current");
+    }
   }
 
   return lines.join("\n");

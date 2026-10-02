@@ -1,0 +1,25 @@
+depends target=runIx kind=function target_id=ee807471 semantics=downstream_dependents nodes=23 depth=2 depth_limited=true
+diagnostic code=depth_limited message="Stopped descending at depth 2; there may be more below. Raise --depth to look further."
+dep name=execute kind=function id=02fb6ae7 parent=ee807471 rel=called_by path=tools/ix-rank.ts
+dep name=execute kind=function id=18bdd883 parent=ee807471 rel=called_by path=tools/ix-inventory.ts
+dep name=execute kind=function id=245e8d55 parent=ee807471 rel=called_by path=tools/ix-locate.ts
+dep name=execute kind=function id=27fabf7a parent=ee807471 rel=called_by path=tools/ix-subsystems.ts
+dep name=execute kind=function id=52e97f14 parent=ee807471 rel=called_by path=tools/ix-impact.ts
+dep name=execute kind=function id=6e731b52 parent=ee807471 rel=called_by path=tools/ix-stats.ts
+dep name=execute kind=function id=bd418d17 parent=ee807471 rel=called_by path=tools/ix-trace.ts
+dep name=execute kind=function id=c127239e parent=ee807471 rel=called_by path=tools/ix-query.ts
+dep name=execute kind=function id=d16d6cc3 parent=ee807471 rel=called_by path=tools/ix-explain.ts
+dep name=safeRun kind=function id=e6c0b0e6 parent=ee807471 rel=called_by path=runtime/cli.ts
+dep name=execute kind=function id=20f9a9b7 parent=e6c0b0e6 rel=called_by path=tools/ix-ingest.ts
+dep name=fetchSubsystemList kind=function id=326ff807 parent=e6c0b0e6 rel=called_by path=tools/ix-map.ts
+dep name=fetchSection kind=function id=3bbc0312 parent=e6c0b0e6 rel=called_by path=tools/ix-neighbors.ts
+dep name=tryLlm kind=function id=3f830823 parent=e6c0b0e6 rel=called_by path=runtime/llm.ts
+dep name=execute kind=function id=52e97f14 parent=e6c0b0e6 rel=called_by path=tools/ix-impact.ts cycle=true
+dep name=fallbackImpactVerdict kind=function id=539f52fe parent=e6c0b0e6 rel=called_by path=tools/ix-decide.ts
+dep name=fetchStats kind=function id=5af9f9e7 parent=e6c0b0e6 rel=called_by path=tools/ix-map.ts
+dep name=fetchSubsystems kind=function id=66779d26 parent=e6c0b0e6 rel=called_by path=tools/ix-map.ts
+dep name=execute kind=function id=d45e0e2e parent=e6c0b0e6 rel=called_by path=tools/ix-docs-tool.ts
+dep name=execute kind=function id=db044b6a parent=e6c0b0e6 rel=called_by path=tools/ix-history.ts
+dep name=execute kind=function id=e6365428 parent=e6c0b0e6 rel=called_by path=tools/ix-health.ts
+dep name=probeStatus kind=function id=f62909a3 parent=e6c0b0e6 rel=called_by path=tools/ix-ingest.ts
+dep name=execute kind=function id=e9df8c79 parent=ee807471 rel=called_by path=tools/ix-smells.ts

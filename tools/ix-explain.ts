@@ -11,6 +11,7 @@
 import { runIx, failureDetail } from "../runtime/cli.ts";
 import { tryLlm } from "../runtime/llm.ts";
 import { formatIxError, parseIxError } from "../runtime/ix-error.ts";
+import { toolCwd } from "../runtime/paths.ts";
 
 export const name = "ix-explain";
 export const description =
@@ -31,7 +32,7 @@ type Params = { symbol: string };
 type Context = { directory: string; worktree?: string };
 
 export async function execute(params: Params, context: Context): Promise<string> {
-  const dir = context.worktree ?? context.directory;
+  const dir = toolCwd(context);
 
   // Tier 5: gated to ix >= 0.9.2, not 0.7.0. Before that release `explain`
   // accepted `--format llm` and rendered *text* — no error, exit 0 — so an
@@ -48,6 +49,7 @@ export async function execute(params: Params, context: Context): Promise<string>
   let raw: {
     resolvedTarget?: { kind?: string; name?: string; path?: string };
     facts?: {
+      path?: string;
       callerCount?: number;
       calleeCount?: number;
       dependentCount?: number;
@@ -84,7 +86,9 @@ export async function execute(params: Params, context: Context): Promise<string>
   const lines = [`## ix-explain: ${params.symbol}`, ""];
 
   if (target?.kind) lines.push(`**Kind:** ${target.kind}`);
-  if (target?.path) lines.push(`**Path:** \`${target.path}\``);
+  // `resolvedTarget` carries kind and name only; the path is under `facts`.
+  const filePath = target?.path ?? facts?.path;
+  if (filePath) lines.push(`**Path:** \`${filePath}\``);
 
   if (role?.role) {
     const conf = role.confidence ? ` (${role.confidence} confidence)` : "";

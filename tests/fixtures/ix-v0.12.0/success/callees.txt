@@ -1,0 +1,8 @@
+callees target=tryLlm shown=7 total=7 resolved=7
+ref name=commandAllowsLlm kind=function path=runtime/llm.ts lines=131-138 site=runtime/llm.ts:163 snippet="if (!commandAllowsLlm(args)) return null;"
+ref name=redactSecrets kind=function path=runtime/secrets.ts lines=52-59 site=runtime/llm.ts:184 snippet="const text = redactSecrets(out).trim();"
+ref name=detectVersion kind=function path=runtime/llm.ts lines=115-129 site=runtime/llm.ts:166 snippet="const version = await detectVersion(cwd);"
+ref name=gte kind=function path=runtime/llm.ts lines=94-100 site=runtime/llm.ts:167 snippet="if (version === null || !gte(version, floor)) return null;"
+ref name=safeRun kind=function path=runtime/cli.ts lines=56-60 site=runtime/llm.ts:176 snippet="const out = await safeRun($`ix ${[...args, \"--format\", \"llm\"]}`.cwd(cwd));"
+ref name=llmDisabled kind=function path=runtime/llm.ts lines=102-105 site=runtime/llm.ts:162 snippet="if (llmDisabled()) return null;"
+ref name=isLlmErrorLine kind=function path=runtime/llm.ts lines=147-149 site=runtime/llm.ts:186 snippet="if (isLlmErrorLine(text)) return null;"

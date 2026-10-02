@@ -1,0 +1,103 @@
+trace mode=directional target=safeRun kind=mixed direction=both depth=3 target_id=e6c0b0e6 truncated=true depth_limited=true up_nodes=100 up_depth=3 down_nodes=1 down_depth=2
+diagnostic code=truncated message="Node cap of 100 reached; nodes were dropped. Raise --cap, or start from a narrower target."
+up name=execute kind=function id=20f9a9b7 parent=e6c0b0e6 path=tools/ix-ingest.ts
+up name=ix-ingest.ts kind=file id=8dd76fd0 parent=20f9a9b7 path=tools/ix-ingest.ts
+up name=ix-plugin.ts kind=file id=d3d2fc3a parent=8dd76fd0 path=plugins/ix-plugin.ts
+up name=tools.test.ts kind=file id=f8ff9da2 parent=8dd76fd0 path=tests/tools.test.ts
+up name=fetchSubsystemList kind=function id=326ff807 parent=e6c0b0e6 path=tools/ix-map.ts
+up name=execute kind=function id=ab0428c4 parent=326ff807 path=tools/ix-map.ts
+up name=ix-map.ts kind=file id=7e6fe119 parent=ab0428c4 path=tools/ix-map.ts cycle=true
+up name=ix-map.ts kind=file id=7e6fe119 parent=326ff807 path=tools/ix-map.ts
+up name=ix-plugin.ts kind=file id=d3d2fc3a parent=7e6fe119 path=plugins/ix-plugin.ts cycle=true
+up name=tools.test.ts kind=file id=f8ff9da2 parent=7e6fe119 path=tests/tools.test.ts cycle=true
+up name=fetchSection kind=function id=3bbc0312 parent=e6c0b0e6 path=tools/ix-neighbors.ts
+up name=execute kind=function id=e1bf5a52 parent=3bbc0312 path=tools/ix-neighbors.ts
+up name=ix-neighbors.ts kind=file id=e00ac8ac parent=e1bf5a52 path=tools/ix-neighbors.ts cycle=true
+up name=ix-neighbors.ts kind=file id=e00ac8ac parent=3bbc0312 path=tools/ix-neighbors.ts
+up name=ix-plugin.ts kind=file id=d3d2fc3a parent=e00ac8ac path=plugins/ix-plugin.ts cycle=true
+up name=tools.test.ts kind=file id=f8ff9da2 parent=e00ac8ac path=tests/tools.test.ts cycle=true
+up name=tryLlm kind=function id=3f830823 parent=e6c0b0e6 path=runtime/llm.ts
+up name=execute kind=function id=02fb6ae7 parent=3f830823 path=tools/ix-rank.ts
+up name=ix-rank.ts kind=file id=184c6438 parent=02fb6ae7 path=tools/ix-rank.ts cycle=true
+up name=execute kind=function id=18bdd883 parent=3f830823 path=tools/ix-inventory.ts
+up name=ix-inventory.ts kind=file id=a0eda681 parent=18bdd883 path=tools/ix-inventory.ts cycle=true
+up name=execute kind=function id=245e8d55 parent=3f830823 path=tools/ix-locate.ts
+up name=ix-locate.ts kind=file id=18113053 parent=245e8d55 path=tools/ix-locate.ts cycle=true
+up name=execute kind=function id=27fabf7a parent=3f830823 path=tools/ix-subsystems.ts
+up name=ix-subsystems.ts kind=file id=d2467eeb parent=27fabf7a path=tools/ix-subsystems.ts cycle=true
+up name=fetchSection kind=function id=3bbc0312 parent=3f830823 path=tools/ix-neighbors.ts cycle=true
+up name=execute kind=function id=6e731b52 parent=3f830823 path=tools/ix-stats.ts
+up name=ix-stats.ts kind=file id=f87c1d98 parent=6e731b52 path=tools/ix-stats.ts cycle=true
+up name=execute kind=function id=bd418d17 parent=3f830823 path=tools/ix-trace.ts
+up name=ix-trace.ts kind=file id=9e29e3eb parent=bd418d17 path=tools/ix-trace.ts cycle=true
+up name=execute kind=function id=d16d6cc3 parent=3f830823 path=tools/ix-explain.ts
+up name=ix-explain.ts kind=file id=31b751cd parent=d16d6cc3 path=tools/ix-explain.ts cycle=true
+up name=execute kind=function id=e9df8c79 parent=3f830823 path=tools/ix-smells.ts
+up name=ix-smells.ts kind=file id=fd142b7b parent=e9df8c79 path=tools/ix-smells.ts cycle=true
+up name=llm.ts kind=file id=7a33c764 parent=3f830823 path=runtime/llm.ts
+up name=ix-locate.ts kind=file id=18113053 parent=7a33c764 path=tools/ix-locate.ts cycle=true
+up name=ix-rank.ts kind=file id=184c6438 parent=7a33c764 path=tools/ix-rank.ts cycle=true
+up name=ix-explain.ts kind=file id=31b751cd parent=7a33c764 path=tools/ix-explain.ts cycle=true
+up name=ix-trace.ts kind=file id=9e29e3eb parent=7a33c764 path=tools/ix-trace.ts cycle=true
+up name=ix-inventory.ts kind=file id=a0eda681 parent=7a33c764 path=tools/ix-inventory.ts cycle=true
+up name=llm.test.ts kind=file id=cdccb235 parent=7a33c764 path=tests/llm.test.ts
+up name=ix-subsystems.ts kind=file id=d2467eeb parent=7a33c764 path=tools/ix-subsystems.ts cycle=true
+up name=ix-neighbors.ts kind=file id=e00ac8ac parent=7a33c764 path=tools/ix-neighbors.ts cycle=true
+up name=ix-stats.ts kind=file id=f87c1d98 parent=7a33c764 path=tools/ix-stats.ts cycle=true
+up name=ix-smells.ts kind=file id=fd142b7b parent=7a33c764 path=tools/ix-smells.ts cycle=true
+up name=execute kind=function id=52e97f14 parent=e6c0b0e6 path=tools/ix-impact.ts
+up name=ix-impact.ts kind=file id=d0469f0f parent=52e97f14 path=tools/ix-impact.ts
+up name=ix-plugin.ts kind=file id=d3d2fc3a parent=d0469f0f path=plugins/ix-plugin.ts cycle=true
+up name=tools.test.ts kind=file id=f8ff9da2 parent=d0469f0f path=tests/tools.test.ts cycle=true
+up name=fallbackImpactVerdict kind=function id=539f52fe parent=e6c0b0e6 path=tools/ix-decide.ts
+up name=execute kind=function id=23e75eca parent=539f52fe path=tools/ix-decide.ts
+up name=ix-decide.ts kind=file id=d5b67289 parent=23e75eca path=tools/ix-decide.ts cycle=true
+up name=ix-decide.ts kind=file id=d5b67289 parent=539f52fe path=tools/ix-decide.ts
+up name=ix-plugin.ts kind=file id=d3d2fc3a parent=d5b67289 path=plugins/ix-plugin.ts cycle=true
+up name=tools.test.ts kind=file id=f8ff9da2 parent=d5b67289 path=tests/tools.test.ts cycle=true
+up name=fetchStats kind=function id=5af9f9e7 parent=e6c0b0e6 path=tools/ix-map.ts
+up name=execute kind=function id=ab0428c4 parent=5af9f9e7 path=tools/ix-map.ts cycle=true
+up name=ix-map.ts kind=file id=7e6fe119 parent=5af9f9e7 path=tools/ix-map.ts cycle=true
+up name=fetchSubsystems kind=function id=66779d26 parent=e6c0b0e6 path=tools/ix-map.ts
+up name=execute kind=function id=ab0428c4 parent=66779d26 path=tools/ix-map.ts cycle=true
+up name=ix-map.ts kind=file id=7e6fe119 parent=66779d26 path=tools/ix-map.ts cycle=true
+up name=execute kind=function id=d45e0e2e parent=e6c0b0e6 path=tools/ix-docs-tool.ts
+up name=ix-docs-tool.ts kind=file id=43611da1 parent=d45e0e2e path=tools/ix-docs-tool.ts
+up name=ix-plugin.ts kind=file id=d3d2fc3a parent=43611da1 path=plugins/ix-plugin.ts cycle=true
+up name=tools.test.ts kind=file id=f8ff9da2 parent=43611da1 path=tests/tools.test.ts cycle=true
+up name=execute kind=function id=db044b6a parent=e6c0b0e6 path=tools/ix-history.ts
+up name=ix-history.ts kind=file id=b9cd0793 parent=db044b6a path=tools/ix-history.ts
+up name=ix-plugin.ts kind=file id=d3d2fc3a parent=b9cd0793 path=plugins/ix-plugin.ts cycle=true
+up name=tools.test.ts kind=file id=f8ff9da2 parent=b9cd0793 path=tests/tools.test.ts cycle=true
+up name=execute kind=function id=e6365428 parent=e6c0b0e6 path=tools/ix-health.ts
+up name=ix-health.ts kind=file id=1bd2986a parent=e6365428 path=tools/ix-health.ts
+up name=ix-plugin.ts kind=file id=d3d2fc3a parent=1bd2986a path=plugins/ix-plugin.ts cycle=true
+up name=tools.test.ts kind=file id=f8ff9da2 parent=1bd2986a path=tests/tools.test.ts cycle=true
+up name=probeStatus kind=function id=f62909a3 parent=e6c0b0e6 path=tools/ix-ingest.ts
+up name=execute kind=function id=20f9a9b7 parent=f62909a3 path=tools/ix-ingest.ts cycle=true
+up name=ix-ingest.ts kind=file id=8dd76fd0 parent=f62909a3 path=tools/ix-ingest.ts cycle=true
+up name=cli.ts kind=file id=34c179f9 parent=e6c0b0e6 path=runtime/cli.ts
+up name=ix-locate.ts kind=file id=18113053 parent=34c179f9 path=tools/ix-locate.ts
+up name=ix-plugin.ts kind=file id=d3d2fc3a parent=18113053 path=plugins/ix-plugin.ts cycle=true
+up name=tools.test.ts kind=file id=f8ff9da2 parent=18113053 path=tests/tools.test.ts cycle=true
+up name=ix-rank.ts kind=file id=184c6438 parent=34c179f9 path=tools/ix-rank.ts
+up name=ix-plugin.ts kind=file id=d3d2fc3a parent=184c6438 path=plugins/ix-plugin.ts cycle=true
+up name=tools.test.ts kind=file id=f8ff9da2 parent=184c6438 path=tests/tools.test.ts cycle=true
+up name=ix-query.ts kind=file id=194120e9 parent=34c179f9 path=tools/ix-query.ts
+up name=ix-plugin.ts kind=file id=d3d2fc3a parent=194120e9 path=plugins/ix-plugin.ts cycle=true
+up name=ix-health.ts kind=file id=1bd2986a parent=34c179f9 path=tools/ix-health.ts cycle=true
+up name=ix-explain.ts kind=file id=31b751cd parent=34c179f9 path=tools/ix-explain.ts
+up name=ix-docs-tool.ts kind=file id=43611da1 parent=34c179f9 path=tools/ix-docs-tool.ts cycle=true
+up name=llm.ts kind=file id=7a33c764 parent=34c179f9 path=runtime/llm.ts cycle=true
+up name=ix-map.ts kind=file id=7e6fe119 parent=34c179f9 path=tools/ix-map.ts cycle=true
+up name=ix-ingest.ts kind=file id=8dd76fd0 parent=34c179f9 path=tools/ix-ingest.ts cycle=true
+up name=ix-trace.ts kind=file id=9e29e3eb parent=34c179f9 path=tools/ix-trace.ts
+up name=ix-inventory.ts kind=file id=a0eda681 parent=34c179f9 path=tools/ix-inventory.ts
+up name=ix-history.ts kind=file id=b9cd0793 parent=34c179f9 path=tools/ix-history.ts cycle=true
+up name=ix-impact.ts kind=file id=d0469f0f parent=34c179f9 path=tools/ix-impact.ts cycle=true
+up name=ix-subsystems.ts kind=file id=d2467eeb parent=34c179f9 path=tools/ix-subsystems.ts
+up name=ix-decide.ts kind=file id=d5b67289 parent=34c179f9 path=tools/ix-decide.ts cycle=true
+up name=ix-neighbors.ts kind=file id=e00ac8ac parent=34c179f9 path=tools/ix-neighbors.ts cycle=true
+up name=ix-stats.ts kind=file id=f87c1d98 parent=34c179f9 path=tools/ix-stats.ts
+up name=ix-smells.ts kind=file id=fd142b7b parent=34c179f9 path=tools/ix-smells.ts
+down name=runIx kind=function id=ee807471 parent=e6c0b0e6 path=runtime/cli.ts

@@ -1,0 +1,5 @@
+inventory kind=file scope=runtime shown=4
+file path=runtime/llm.ts items=llm.ts
+file path=runtime/secrets.ts items=secrets.ts
+file path=runtime/cli.ts items=cli.ts
+file path=runtime/client.ts items=client.ts

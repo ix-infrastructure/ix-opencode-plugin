@@ -1,0 +1,1 @@
+status backend=ok endpoint=http://127.0.0.1:8094 graph_complete=true map_complete=true rev=1 last_ingest_at=2026-10-02T01:14:41.855Z stale_files=0 stale=false

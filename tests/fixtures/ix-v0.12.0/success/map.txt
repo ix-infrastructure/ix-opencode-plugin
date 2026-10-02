@@ -1,0 +1,12 @@
+map files=38 regions=11 levels=2 rev=1 outcome=full_local_completed stitch_skipped="this map did not re-parse every file, so it has no complete cross-workspace registration to send" stitch_skipped_rule=incomplete
+region id=d1d2d840 kind=module label=Explain level=1 files=7 parent=9e37e2f3 cohesion=0.45 coupling=28.98 crosscut=0.04 confidence=0.38 signals=calls,imports,path
+region id=a12802ed kind=module label=Impact level=1 files=5 parent=9e37e2f3 cohesion=0.67 coupling=33.74 crosscut=0.14 confidence=0.34 signals=calls,imports,path
+region id=d4a36832 kind=module label=Opencode level=1 files=1 cohesion=0 coupling=0.2 confidence=0.04 signals=path
+region id=f93dc886 kind=module label=Package level=1 files=1 cohesion=0 coupling=0.2 confidence=0.04 signals=path
+region id=f762eb93 kind=module label=Plugins level=1 files=4 parent=9e37e2f3 cohesion=0.49 coupling=21.79 confidence=0.31 signals=imports,calls,path
+region id=7010867e kind=module label=Runtime level=1 files=8 parent=9e37e2f3 cohesion=0.4 coupling=29.16 crosscut=0.01 confidence=0.4 signals=calls,path,imports
+region id=3ece01a7 kind=module label=Scripts level=1 files=1 cohesion=0 coupling=0 confidence=0.04 signals=path
+region id=1dcc96f8 kind=system label=.github level=5 files=3 cohesion=0.2 coupling=0 confidence=0.57 signals=path
+region id=9fd8cfcf kind=system label=Agents level=5 files=5 cohesion=0.2 coupling=0 confidence=0.63 signals=path
+region id=9e37e2f3 kind=system label=Tools level=5 files=24 children=4 cohesion=0.31 coupling=0 crosscut=0.04 confidence=0.78 signals=calls,path,imports
+region id=c1962d16 kind=system label=Workflows level=5 files=3 cohesion=0.2 coupling=0 confidence=0.57 signals=path

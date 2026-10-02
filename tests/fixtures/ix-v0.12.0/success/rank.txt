@@ -1,0 +1,11 @@
+rank metric=dependents kind=function evaluated=98 returned=10
+entity name=safeRun kind=function score=12
+entity name=runIx kind=function score=11
+entity name=failureDetail kind=function score=10
+entity name=tryLlm kind=function score=9
+entity name=callRuntime kind=function score=7
+entity name=fmt_ok kind=function score=5
+entity name=fmt_warn kind=function score=4
+entity name=Write-Ok kind=function score=4
+entity name=redactSecrets kind=function score=3
+entity name=run kind=function score=3

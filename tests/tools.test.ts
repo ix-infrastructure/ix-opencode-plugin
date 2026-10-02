@@ -295,13 +295,13 @@ describe("NonZeroExitDiagnostics", () => {
     const output = await runToolWithStubIx(`
 case "$1" in
   locate)   echo '{"resolvedTarget":null,"resolutionMode":"none","diagnostics":["No graph entity found."]}'; exit 1 ;;
-  overview) echo '{"summary":"Overview body retained."}'; exit 1 ;;
+  overview) echo '{"resolvedTarget":{"kind":"file","name":"Retained.ts"},"path":"src/Retained.ts","keyItems":[]}'; exit 1 ;;
   *)        echo '{}'; exit 1 ;;
 esac`);
 
     // The generic fallback would mean both payloads were thrown away.
     expect(output).not.toContain("**Not found in graph.**");
-    expect(output).toContain("Overview body retained.");
+    expect(output).toContain("src/Retained.ts");
   });
 
   test("still reports not-found when ix exits non-zero with no output", async () => {
@@ -442,7 +442,7 @@ describe("NonZeroExitAcrossTools", () => {
     const output = await runNamedToolWithStub(
       "ix-neighbors.ts",
       { symbol: "SomeSymbol", direction: "callers" },
-      `echo '{"items":[{"name":"CallerOne"}],"count":1}'; exit 1`,
+      `echo '{"results":[{"name":"CallerOne","kind":"function","path":"src/a.ts"}],"summary":{"total":1}}'; exit 1`,
     );
 
     expect(output).toContain("CallerOne");
@@ -492,10 +492,14 @@ describe("RetiredCliShapes", () => {
     const output = await runNamedToolWithStub(
       "ix-smells.ts",
       { limit: 5 },
-      `echo '{"count":0,"candidates":[]}'`,
+      `case "$1" in
+  smells) echo '{"count":0,"inference_version":"smell_v1","smells":[]}' ;;
+  status) echo '{"backend":"ok","graphCompleted":true,"mapCompleted":true,"currentRev":1,"staleFiles":0}' ;;
+  stats)  echo '{"nodes":{"total":5,"byKind":[]},"edges":{"total":3,"byPredicate":[]}}' ;;
+esac`,
     );
 
-    expect(output).toContain("No code smells detected.");
+    expect(output).toContain("No smells detected");
     expect(output).not.toContain("unknown option");
   });
 
@@ -503,11 +507,11 @@ describe("RetiredCliShapes", () => {
     const output = await runNamedToolWithStub(
       "ix-ingest.ts",
       {},
-      `echo '{"connected":true,"graphPresent":true,"fileCount":3}'`,
+      `echo '{"backend":"ok","graphCompleted":true,"mapCompleted":true,"currentRev":3,"lastIngestAt":null,"staleFiles":0}'`,
     );
 
     expect(output).not.toContain("ix CLI not found");
-    expect(output).toContain("**Files indexed:** 3");
+    expect(output).toContain("**Graph:** ingested (rev 3)");
   });
 
   test("ix-ingest refresh maps a directory, never a file", async () => {

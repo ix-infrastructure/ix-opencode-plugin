@@ -1,0 +1,5 @@
+overview target=runIx kind=function file=runtime/cli.ts contained_in="file cli.ts" system_path=Tools,Impact,runIx
+nearby function=2 interface=1
+sibling name=safeRun kind=function
+sibling name=failureDetail kind=function
+sibling name=IxRun kind=interface

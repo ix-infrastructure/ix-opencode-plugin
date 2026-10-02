@@ -11,6 +11,7 @@ import { tool } from "@opencode-ai/plugin";
 import type { Plugin } from "@opencode-ai/plugin";
 
 import { requestAutoMap } from "../runtime/automap.ts";
+import { isSourceFile } from "../runtime/paths.ts";
 
 import * as ixQuery from "../tools/ix-query";
 import * as ixNeighbors from "../tools/ix-neighbors";
@@ -39,11 +40,6 @@ const IX_GRAPH_TOOLS = [
 // `filePath` (sst/opencode tool/edit.ts, write.ts); apply_patch carries a patch
 // and no single path.
 const EDIT_TOOLS = new Set(["edit", "write", "multiedit", "apply_patch"]);
-
-function isSourceFile(path: string): boolean {
-  const skip = ["node_modules", ".git", "dist", "build", ".opencode/ix-cache", "package-lock.json", "yarn.lock", "bun.lock"];
-  return !skip.some((s) => path.includes(s));
-}
 
 /** The edited path, under either spelling; undefined when the tool has none. */
 function editedPath(args: unknown): string | undefined {
@@ -245,6 +241,10 @@ export const server: Plugin = async ({ directory }) => {
         description: ixSmells.description,
         args: {
           limit: tool.schema.number().optional().describe("Max results. Default: 50, max: 200"),
+          detect: tool.schema
+            .boolean()
+            .optional()
+            .describe("Re-run smell detection instead of reading stored claims; stores fresh claims for this workspace. Default: false"),
         },
         async execute(args, ctx) {
           return ixSmells.execute(args, { directory: ctx.directory, worktree: ctx.worktree });

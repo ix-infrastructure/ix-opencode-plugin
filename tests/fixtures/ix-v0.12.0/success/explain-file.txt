@@ -1,0 +1,11 @@
+entity id=34c179f9 name=cli.ts kind=file path=runtime/cli.ts rev=1
+role role=container confidence=high
+importance level=high category=pipeline-choke-point
+edges callers=0 callees=0 dependents=18 importers=18 members=4 downstream=63 depth=4 history=1
+uses name=ix-locate.ts rel=dependent path=tools/ix-locate.ts
+uses name=ix-rank.ts rel=dependent path=tools/ix-rank.ts
+uses name=ix-query.ts rel=dependent path=tools/ix-query.ts
+member name=IxRun path=runtime/cli.ts lines=24-28
+member name=safeRun path=runtime/cli.ts lines=56-60
+member name=runIx path=runtime/cli.ts lines=37-48
+member name=failureDetail path=runtime/cli.ts lines=68-73
