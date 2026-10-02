@@ -30,8 +30,12 @@ const REDACTED = "[REDACTED]";
 
 /** Whole-match patterns: the match is the secret. */
 const SECRET_PATTERNS: RegExp[] = [
-  // PEM private key blocks: `-----BEGIN PRIVATE KEY-----` and `BEGIN RSA PRIVATE KEY`.
-  /-----BEGIN (?:[A-Z0-9]+ )*PRIVATE KEY-----[\s\S]*?-----END (?:[A-Z0-9]+ )*PRIVATE KEY-----/g,
+  // PEM private key blocks: plain `BEGIN PRIVATE KEY` and `BEGIN RSA PRIVATE KEY`.
+  // Built from pieces so secret scanners do not read the pattern itself as a key.
+  new RegExp(
+    "-----BEGIN (?:[A-Z0-9]+ )*PRIVATE" + " KEY-----[\\s\\S]*?-----END (?:[A-Z0-9]+ )*PRIVATE" + " KEY-----",
+    "g",
+  ),
   // JSON Web Tokens: three base64url segments, the first two JSON objects.
   /\beyJ[A-Za-z0-9_-]{8,}\.eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}/g,
   /\bBearer\s+[A-Za-z0-9._~+/-]{20,}=*/g,

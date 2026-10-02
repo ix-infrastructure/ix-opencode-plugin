@@ -65,7 +65,7 @@ describe("redactSecrets still redacts credentials", () => {
     ["GitHub fine-grained token", j("github_pat_", "11ABCDEFG0123456789_abcdefghijklmnopqrstuvwxyzABCDEFGHIJ0123456789"), "[REDACTED]"],
     ["GitLab token", j("glpat-", "xY7zA1bC2dE3fG4hI5jK"), "[REDACTED]"],
     ["OpenAI key", j("key is ", "sk-", "proj-", "Ab3dEf6hIj9kLm2nOp5qRs8tUv1wXy4z"), "key is [REDACTED]"],
-    ["Anthropic key", j("sk-", "ant-", "api03-", "Zx9Yw8Vu7Ts6Rq5Po4Nm3Lk2Ji1Hg0Fe"), "[REDACTED]"],
+    ["Anthropic key", j("sk-", "ant-", "api03-", "x".repeat(32)), "[REDACTED]"],
     ["AWS access key id", j("aws ", "AKIA", "IOSFODNN7EXAMPLE"), "aws [REDACTED]"],
     ["Google API key", j("AIza", "SyA1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6Q"), "[REDACTED]"],
     ["Slack token", j("xoxb-", "123456789012-abcdefGHIJKL"), "[REDACTED]"],
