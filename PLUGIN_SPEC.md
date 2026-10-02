@@ -1,8 +1,15 @@
 # ix-opencode-plugin — Plugin Specification
 
 Version: 2.0.0-draft  
-Root spec: [IX_PLUGIN_OVERHAUL_SPEC.md](../IX_PLUGIN_OVERHAUL_SPEC.md)  
+Root spec: `IX_PLUGIN_OVERHAUL_SPEC.md` (internal; not published in this repo)  
 Status: **Overhaul target — v1.0.0 production.** Refactor to match ix-claude-plugin behavior semantics and ix-cursor-plugin tool surface parity (17-tool expansion).
+
+> **Superseded — historical spec.** This drove the 2026-05 overhaul ([ROADMAP.md](./ROADMAP.md)) and is kept as a record, not as a description of the plugin today. Since then:
+>
+> - The Ix Core Runtime `/v2` migration (sections 6, 8, 10–12, 15) was abandoned. `runtime/client.ts` and every `/v2` call were deleted in #24 (v1.1.1): no Ix build serves `/v2/*`. Every tool calls the `ix` CLI through `runtime/cli.ts`, and the runtime-alpha date below (2026-07-15) is moot.
+> - No `tool.execute.before` hook ships (`ix-pre-edit`, `ix-read`, `ix-intercept`); the only hook is `tool.execute.after`. `ix-decide` is a tool, not a pre-edit gate.
+>
+> For current behavior see [README.md](./README.md), [ARCHITECTURE.md](./ARCHITECTURE.md) and [TOOL_CONTRACT.md](./TOOL_CONTRACT.md).
 
 ---
 
@@ -265,7 +272,7 @@ ix-opencode-plugin/
 
 ## 11. Shared Ix Core Runtime requirements
 
-See [IX_PLUGIN_OVERHAUL_SPEC.md](../IX_PLUGIN_OVERHAUL_SPEC.md). Plugin-specific notes:
+See `IX_PLUGIN_OVERHAUL_SPEC.md` (internal; not published in this repo). Plugin-specific notes:
 
 - `caller.surface = "opencode-plugin"` in all API calls.
 - `runtime/client.ts` must handle `IX_UPSTREAM_UNAVAILABLE` gracefully; tools must fail non-fatally.
@@ -331,15 +338,15 @@ See [IX_PLUGIN_OVERHAUL_SPEC.md](../IX_PLUGIN_OVERHAUL_SPEC.md). Plugin-specific
 
 ## 16. Acceptance criteria
 
-- [~] All 7 existing tools call the Ix Core Runtime API; no direct `ix` CLI calls remain. **Partial** — all 7 tools try the runtime API first (via `runtime/client.ts`); CLI calls remain as the fallback path until the runtime alpha ships (2026-07-15).
+- [~] All 7 existing tools call the Ix Core Runtime API; no direct `ix` CLI calls remain. **Partial** — all 7 tools try the runtime API first (via `runtime/client.ts`); CLI calls remain as the fallback path until the runtime alpha ships (2026-07-15). **Superseded (#24):** the runtime client was deleted; the CLI is the only path.
 - [x] 10 new tools implemented and registered (`ix-locate`, `ix-explain`, `ix-rank`, `ix-stats`, `ix-subsystems`, `ix-inventory`, `ix-trace`, `ix-decide`, `ix-health`, `ix-smells`).
 - [x] `ix-help` slash command added.
-- [x] `ix-pre-edit` hook reliably calls `ix_decide` before file writes.
+- [ ] `ix-pre-edit` hook reliably calls `ix_decide` before file writes. **Not met:** no pre-edit hook ships (dropped in the OpenCode v1.4.2 migration, f9ea81e).
 - [x] `ix-ingest` hook fires after file edits.
 - [x] MCP support status verified and documented. **Result: not supported.**
 - [x] Bun vs Node.js runtime requirement documented. **Result: Bun required.**
 - [x] All tools degrade gracefully when runtime is unavailable.
-- [x] `TOOL_CONTRACT.md` updated to reflect v2 API contracts.
+- [x] `TOOL_CONTRACT.md` updated to reflect v2 API contracts. **Superseded (#24):** the v2 contracts were removed again.
 - [ ] Shared golden cases pass. **Blocked — requires live OpenCode session.**
 
 ---

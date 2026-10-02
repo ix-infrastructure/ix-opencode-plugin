@@ -1,0 +1,28 @@
+# Dependencies: restored from bun.lock by `bun install --frozen-lockfile`.
+node_modules/
+
+# Coverage output (`bun test --coverage`).
+coverage/
+
+# Build output. Nothing is built today (Bun runs the .ts directly and
+# `tsc --noEmit` only typechecks), but keep a stray emit out of the tree.
+dist/
+build/
+*.tsbuildinfo
+
+# OpenCode's per-project state when you run OpenCode inside this repo,
+# including .opencode/ix-cache/ and the deps it installs for plugins.
+.opencode/
+
+# Logs and local env.
+*.log
+.env
+.env.*
+
+# OS and editor files.
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*~

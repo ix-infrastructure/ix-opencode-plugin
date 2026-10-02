@@ -219,10 +219,12 @@ if (-not (Test-Path (Join-Path $SourceDir "plugins\ix-plugin.ts"))) {
 
 # ── Install dependencies ──────────────────────────────────────────────────────
 
+# node_modules is not committed: this step is what provides @opencode-ai/plugin.
+# --production skips the dev toolchain (typescript, bun-types).
 Write-Step "Installing dependencies"
-Invoke-Step "bun install" {
+Invoke-Step "bun install --production" {
     Push-Location $SourceDir
-    $bunOut = bun install --silent 2>&1
+    $bunOut = bun install --production --silent 2>&1
     if ($LASTEXITCODE -ne 0) {
         Write-Err "bun install failed:`n$bunOut"
     }

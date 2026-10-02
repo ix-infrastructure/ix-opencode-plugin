@@ -254,8 +254,11 @@ fi
 
 # ── Install dependencies ──────────────────────────────────────────────────────
 
+# node_modules is not committed: this step is what provides @opencode-ai/plugin
+# for the linked plugin. --production skips the dev toolchain (typescript,
+# bun-types), which only the repo's own CI and contributors need.
 fmt_step "Installing dependencies"
-run bash -c "cd '$SOURCE_DIR' && bun install --silent" < /dev/null
+run bash -c "cd '$SOURCE_DIR' && bun install --production --silent" < /dev/null
 fmt_ok "@opencode-ai/plugin ready"
 
 # ── Uninstall ─────────────────────────────────────────────────────────────────
