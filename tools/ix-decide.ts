@@ -24,6 +24,7 @@
 
 import { failureDetail, runIx } from "../runtime/cli.ts";
 import { ixErrorFromJson, ixErrorLines, runFailure, type IxError } from "../runtime/ix-error.ts";
+import { toolCwd } from "../runtime/paths.ts";
 
 export const name = "ix-decide";
 export const description =
@@ -62,7 +63,7 @@ type Params = {
 type Context = { directory: string; worktree?: string };
 
 export async function execute(params: Params, context: Context): Promise<string> {
-  const dir = context.worktree ?? context.directory;
+  const dir = toolCwd(context);
   const intent = params.intent ?? "edit";
   const riskTolerance = params.risk_tolerance ?? "medium";
 

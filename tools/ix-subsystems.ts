@@ -11,6 +11,7 @@
 import { runIx, failureDetail } from "../runtime/cli.ts";
 import { tryLlm } from "../runtime/llm.ts";
 import { formatIxError, parseIxError } from "../runtime/ix-error.ts";
+import { toolCwd } from "../runtime/paths.ts";
 
 export const name = "ix-subsystems";
 export const description =
@@ -26,7 +27,7 @@ type Params = Record<string, never>;
 type Context = { directory: string; worktree?: string };
 
 export async function execute(_params: Params, context: Context): Promise<string> {
-  const dir = context.worktree ?? context.directory;
+  const dir = toolCwd(context);
 
   const fast = await tryLlm(["subsystems"], dir);
   if (fast) return `## ix-subsystems\n\n${fast}`;

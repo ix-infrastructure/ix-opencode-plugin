@@ -9,6 +9,7 @@
 
 import { safeRun } from "../runtime/cli.ts";
 import { formatIxError, parseIxError, type IxError } from "../runtime/ix-error.ts";
+import { toolCwd } from "../runtime/paths.ts";
 
 export const name = "ix-history";
 export const description =
@@ -50,7 +51,7 @@ export async function execute(
   params: Params,
   context: Context
 ): Promise<string> {
-  const dir = context.worktree ?? context.directory;
+  const dir = toolCwd(context);
   const include = params.include ?? ["briefing"];
 
   // Check Pro availability via briefing

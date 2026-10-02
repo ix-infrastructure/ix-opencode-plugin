@@ -10,6 +10,7 @@
 import { runIx, failureDetail } from "../runtime/cli.ts";
 import { tryLlm } from "../runtime/llm.ts";
 import { formatIxError, parseIxError } from "../runtime/ix-error.ts";
+import { toolCwd } from "../runtime/paths.ts";
 
 export const name = "ix-rank";
 export const description =
@@ -53,7 +54,7 @@ type Params = {
 type Context = { directory: string; worktree?: string };
 
 export async function execute(params: Params, context: Context): Promise<string> {
-  const dir = context.worktree ?? context.directory;
+  const dir = toolCwd(context);
   const by = params.by ?? "dependents";
   const kind = params.kind ?? "class";
   const top = Math.min(params.top ?? 10, 50);
@@ -86,6 +87,7 @@ export async function execute(params: Params, context: Context): Promise<string>
     kind?: string;
     results?: { name?: string; kind?: string; score?: number; path?: string }[];
     summary?: { evaluated?: number; returned?: number };
+    diagnostics?: (string | { message?: string })[];
   };
   try {
     raw = JSON.parse(output);
@@ -95,7 +97,14 @@ export async function execute(params: Params, context: Context): Promise<string>
 
   const results = raw.results ?? [];
   if (results.length === 0) {
-    return `## ix-rank: ${by}/${kind}\n\nNo results. The graph may be empty — run \`ix map\` to index the codebase.`;
+    // `evaluated: 0` with a diagnostic is "no entities of this kind", which on
+    // a mapped graph is a real answer (a TypeScript repo has no classes), not
+    // a sign the graph is empty.
+    const why = (raw.diagnostics ?? [])
+      .map((d) => (typeof d === "string" ? d : d.message))
+      .filter(Boolean)
+      .join(" ");
+    return `## ix-rank: ${by}/${kind}\n\nNo results.${why ? ` Ix: ${why}` : ""} Try another \`kind\`; if every kind is empty, the graph may not be mapped — run \`ix map\`.`;
   }
 
   const scopeNote = params.path ? ` in \`${params.path}\`` : "";

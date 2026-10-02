@@ -11,6 +11,7 @@
 import { runIx, failureDetail } from "../runtime/cli.ts";
 import { tryLlm } from "../runtime/llm.ts";
 import { formatIxError, parseIxError } from "../runtime/ix-error.ts";
+import { toolCwd } from "../runtime/paths.ts";
 
 export const name = "ix-locate";
 export const description =
@@ -53,7 +54,7 @@ type Context = {
 };
 
 export async function execute(params: Params, context: Context): Promise<string> {
-  const dir = context.worktree ?? context.directory;
+  const dir = toolCwd(context);
   const limit = Math.min(params.limit ?? 20, 100);
 
   const llmArgs = ["text", params.pattern, "--limit", String(limit)];

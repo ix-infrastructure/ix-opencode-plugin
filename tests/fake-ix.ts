@@ -12,6 +12,10 @@
  *   ix locate ... --limit    -> exit 1 "unknown option '--limit'"
  *   ix smells ... --path     -> exit 1 "unknown option '--path'"
  *
+ * and refuses one call the real CLI accepts but the plugin must never make:
+ *
+ *   ix smells (no --list)    -> exit 2: re-runs detection and writes claims
+ *
  * When IX_FAKE_LOG is set, every invocation appends one line to it:
  * `<cwd>|<IX_AUTO_MAP>|<argv...>`.
  */
@@ -42,9 +46,12 @@ case "\${1:-}" in
     done
     ;;
   smells)
+    _list=0
     for _a in "$@"; do
       if [ "$_a" = "--path" ]; then echo "error: unknown option '--path'" >&2; exit 1; fi
+      if [ "$_a" = "--list" ]; then _list=1; fi
     done
+    if [ "$_list" = 0 ]; then echo "fake ix refuses bare 'ix smells': it writes smell claims; use --list" >&2; exit 2; fi
     ;;
 esac
 `;

@@ -10,6 +10,7 @@
 import { runIx, failureDetail } from "../runtime/cli.ts";
 import { tryLlm } from "../runtime/llm.ts";
 import { formatIxError, parseIxError } from "../runtime/ix-error.ts";
+import { toolCwd } from "../runtime/paths.ts";
 
 export const name = "ix-inventory";
 export const description =
@@ -40,7 +41,7 @@ type Params = {
 type Context = { directory: string; worktree?: string };
 
 export async function execute(params: Params, context: Context): Promise<string> {
-  const dir = context.worktree ?? context.directory;
+  const dir = toolCwd(context);
   const kind = params.kind ?? "file";
 
   const fast = await tryLlm(["inventory", "--kind", kind, "--path", params.path], dir);
@@ -55,7 +56,8 @@ export async function execute(params: Params, context: Context): Promise<string>
   let raw: {
     kind?: string;
     scope?: string;
-    total?: number;
+    shown?: number;
+    truncated?: boolean;
     byFile?: { path?: string; items?: string[] }[];
   };
   try {
@@ -65,7 +67,8 @@ export async function execute(params: Params, context: Context): Promise<string>
   }
 
   const entries = raw.byFile ?? [];
-  const total = raw.total ?? entries.reduce((n, e) => n + (e.items?.length ?? 1), 0);
+  // `shown` counts the entities listed; `truncated` says the limit cut it short.
+  const total = raw.shown ?? entries.reduce((n, e) => n + (e.items?.length ?? 1), 0);
 
   if (entries.length === 0) {
     return [
@@ -78,7 +81,7 @@ export async function execute(params: Params, context: Context): Promise<string>
   const lines = [
     `## ix-inventory: ${params.path}`,
     "",
-    `**${total} ${kind}${total === 1 ? "" : "s"}** under \`${raw.scope ?? params.path}\`:`,
+    `**${total} ${kind}${total === 1 ? "" : "s"}${raw.truncated ? " (truncated)" : ""}** under \`${raw.scope ?? params.path}\`:`,
     "",
   ];
 

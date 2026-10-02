@@ -9,6 +9,8 @@
  */
 
 import { runIx, safeRun } from "../runtime/cli.ts";
+import { parseIxError, type IxError } from "../runtime/ix-error.ts";
+import { toolCwd } from "../runtime/paths.ts";
 
 export const name = "ix-health";
 export const description =
@@ -24,7 +26,7 @@ type Params = Record<string, never>;
 type Context = { directory: string; worktree?: string };
 
 export async function execute(_params: Params, context: Context): Promise<string> {
-  const dir = context.worktree ?? context.directory;
+  const dir = toolCwd(context);
 
   // Check CLI availability
   let cliVersion: string | null = null;
@@ -62,8 +64,9 @@ export async function execute(_params: Params, context: Context): Promise<string
 
   // Check graph state via ix status
   let graphPresent = false;
-  let fileCount: number | undefined;
+  let revision: number | undefined;
   let staleness: string | undefined;
+  let ixError: IxError | null = null;
 
   try {
     // Kept via safeRun: `ix status` exits non-zero for an unhealthy graph while
@@ -71,18 +74,35 @@ export async function execute(_params: Params, context: Context): Promise<string
     // health report is for.
     const statusOut = await safeRun(["status", "--format", "json"], dir);
     if (statusOut === null) throw new Error("no output");
-    const status = JSON.parse(statusOut);
-    graphPresent = (status.currentRev ?? 0) > 0 || status.graphPresent === true;
-    fileCount = status.fileCount;
-    staleness = status.staleFiles > 0 ? `${status.staleFiles} stale files` : status.staleness;
+    ixError = parseIxError(statusOut);
+    if (ixError) throw new Error(ixError.code);
+    // `{"backend","graphCompleted","mapCompleted","currentRev","lastIngestAt","staleFiles",...}`
+    const status = JSON.parse(statusOut) as {
+      graphCompleted?: boolean | null;
+      currentRev?: number | null;
+      staleFiles?: number;
+      lastIngestAt?: string | null;
+    };
+    if (typeof status.graphCompleted !== "boolean") throw new Error("no graph state");
+    graphPresent = status.graphCompleted;
+    if (typeof status.currentRev === "number") revision = status.currentRev;
+    if (graphPresent) {
+      staleness =
+        typeof status.staleFiles === "number" && status.staleFiles > 0
+          ? `${status.staleFiles} stale files`
+          : status.lastIngestAt
+            ? `current (last ingest ${status.lastIngestAt})`
+            : undefined;
+    }
   } catch {
-    // Fall back to subsystems probe
+    // Fall back to the stored subsystem scores: present only if a map ran.
     try {
       const subsOut = await safeRun(["subsystems", "--list", "--format", "json"], dir);
       if (subsOut === null) throw new Error("no output");
-      const parsed = JSON.parse(subsOut);
-      const names: string[] = parsed.names ?? parsed.list ?? [];
-      graphPresent = names.length > 0;
+      ixError = ixError ?? parseIxError(subsOut);
+      if (ixError) throw new Error(ixError.code);
+      const parsed = JSON.parse(subsOut) as { scores?: unknown[] };
+      graphPresent = (parsed.scores ?? []).length > 0;
     } catch {
       // Can't determine graph state
     }
@@ -93,7 +113,8 @@ export async function execute(_params: Params, context: Context): Promise<string
   const overallOk = graphPresent;
   lines.push(`**Status:** ${overallOk ? "OK" : "DEGRADED"}`);
   lines.push(`**CLI:** ix ${cliVersion} — installed`);
-  lines.push(`**Graph:** ${graphPresent ? `indexed${fileCount !== undefined ? ` (${fileCount} files)` : ""}` : "not indexed — run `ix map`"}`);
+  lines.push(`**Graph:** ${graphPresent ? `indexed${revision !== undefined ? ` (rev ${revision})` : ""}` : "not indexed — run `ix map`"}`);
+  if (ixError) lines.push(`**Ix says:** \`${ixError.code}\` — ${ixError.message}`);
   if (staleness) lines.push(`**Freshness:** ${staleness}`);
 
   if (!graphPresent) {

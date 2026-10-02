@@ -11,6 +11,7 @@
 import { runIx, failureDetail } from "../runtime/cli.ts";
 import { tryLlm } from "../runtime/llm.ts";
 import { formatIxError, parseIxError } from "../runtime/ix-error.ts";
+import { toolCwd } from "../runtime/paths.ts";
 
 export const name = "ix-trace";
 export const description =
@@ -43,7 +44,7 @@ type TraceNode = {
 };
 
 export async function execute(params: Params, context: Context): Promise<string> {
-  const dir = context.worktree ?? context.directory;
+  const dir = toolCwd(context);
 
   const llmArgs = ["trace", params.symbol];
   if (params.to) llmArgs.push("--to", params.to);
@@ -63,6 +64,10 @@ export async function execute(params: Params, context: Context): Promise<string>
 
   let raw: {
     mode?: string;
+    from?: { name?: string; kind?: string; path?: string };
+    to?: { name?: string; kind?: string; path?: string };
+    path?: { name?: string; kind?: string }[];
+    summary?: { path_length?: number };
     target?: { name?: string; kind?: string; path?: string };
     upstream?: { tree?: TraceNode[]; summary?: { nodes_visited?: number; max_depth?: number } };
     downstream?: { tree?: TraceNode[]; summary?: { nodes_visited?: number; max_depth?: number } };
@@ -71,6 +76,27 @@ export async function execute(params: Params, context: Context): Promise<string>
     raw = JSON.parse(output);
   } catch {
     return `## ix-trace: ${params.symbol}\n\nFailed to parse output.\n\`\`\`\n${output.slice(0, 400)}\n\`\`\``;
+  }
+
+  // `--to` answers in path mode: one chain of steps, no up/down trees.
+  if (raw.mode === "path" || Array.isArray(raw.path)) {
+    const steps = raw.path ?? [];
+    if (steps.length === 0) {
+      return [
+        `## ix-trace: ${params.symbol}`,
+        "",
+        `No path found from \`${params.symbol}\` to \`${params.to ?? raw.to?.name ?? "?"}\`.`,
+      ].join("\n");
+    }
+    const lines = [
+      `## ix-trace: ${params.symbol}`,
+      "",
+      `**Path to \`${raw.to?.name ?? params.to ?? "?"}\`** (${steps.length} step${steps.length === 1 ? "" : "s"}):`,
+    ];
+    steps.forEach((step, i) => {
+      lines.push(`${i + 1}. \`${step.name ?? "?"}\`${step.kind ? ` (${step.kind})` : ""}`);
+    });
+    return lines.join("\n");
   }
 
   const target = raw.target;

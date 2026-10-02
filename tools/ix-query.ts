@@ -9,6 +9,7 @@
 
 import { runIx, failureDetail } from "../runtime/cli.ts";
 import { formatIxError, parseIxError } from "../runtime/ix-error.ts";
+import { toolCwd } from "../runtime/paths.ts";
 
 export const name = "ix-query";
 export const description =
@@ -50,14 +51,12 @@ export async function execute(
   params: Params,
   context: Context
 ): Promise<string> {
-  const dir = context.worktree ?? context.directory;
+  const dir = toolCwd(context);
 
   // Build locate args
   const locateArgs = ["locate", params.symbol, "--format", "json"];
   if (params.kind) locateArgs.push("--kind", params.kind);
   if (params.path) locateArgs.push("--path", params.path);
-
-  let explainOutput = "";
 
   const locateRun = await runIx(locateArgs, dir);
   if (!locateRun?.stdout.trim()) {
@@ -69,110 +68,145 @@ export async function execute(
   const locateErr = parseIxError(locateOutput);
   if (locateErr) return formatIxError(`## ix-query: ${params.symbol}`, locateErr);
 
-  let locateResult: { results?: { name: string; kind: string; file: string }[] };
+  let locate: LocateRecord;
   try {
-    locateResult = JSON.parse(locateOutput);
+    locate = JSON.parse(locateOutput);
   } catch {
     return `**ix-query: ${params.symbol}**\n\nFailed to parse locate output. Raw:\n\`\`\`\n${locateOutput.slice(0, 500)}\n\`\`\``;
   }
 
-  const results = locateResult.results ?? [];
-  if (results.length === 0) {
+  // `ix locate` resolves to one entity (`resolvedTarget`), or to none with the
+  // `candidates` it could not choose between (`resolutionMode: "ambiguous"`).
+  const target = locate.resolvedTarget;
+  const candidates = locate.candidates ?? [];
+  if (!target) {
+    if (candidates.length > 0) return formatCandidates(params.symbol, candidates);
     return `**ix-query: ${params.symbol}**\n\nNo matches found in the graph. The symbol may not be indexed yet. Try \`ix map\` to refresh.`;
   }
 
-  const entity = results[0];
+  const entity: Entity = {
+    name: target.name ?? params.symbol,
+    kind: target.kind ?? "?",
+    path: target.path,
+    lines: locate.lineRange,
+    system: (locate.systemPath ?? [])
+      .filter((p) => p.kind === "region" || p.kind === "system" || p.kind === "subsystem")
+      .map((p) => p.name)
+      .filter((n): n is string => typeof n === "string"),
+  };
 
   // `ix explain` is enrichment on top of a locate that already succeeded, so a
   // miss here degrades to the locate-only view rather than failing the tool --
   // but a body printed alongside a non-zero exit is still an answer worth
-  // parsing, which a bare `.text()` would have discarded.
-  const explainRun = await runIx(["explain", entity.name, "--format", "json"], dir);
-  if (!explainRun?.stdout.trim()) return formatLocateOnly(params.symbol, results);
-  explainOutput = explainRun.stdout;
-  if (parseIxError(explainOutput)) return formatLocateOnly(params.symbol, results);
+  // parsing, which a bare `.text()` would have discarded. Narrowed by kind and
+  // path so it explains the entity locate found, not a namesake.
+  const explainArgs = ["explain", entity.name, "--format", "json"];
+  if (target.kind) explainArgs.push("--kind", target.kind);
+  if (target.path) explainArgs.push("--path", target.path);
+  const explainRun = await runIx(explainArgs, dir);
+  if (!explainRun?.stdout.trim()) return formatLocateOnly(params.symbol, entity);
+  const explainOutput = explainRun.stdout;
+  if (parseIxError(explainOutput)) return formatLocateOnly(params.symbol, entity);
 
-  let explainResult: {
-    name?: string;
-    kind?: string;
-    file?: string;
-    role?: string;
-    importance?: string;
-    callerCount?: number;
-    calleeCount?: number;
-    confidence?: number;
-    subsystem?: string;
-    summary?: string;
-  };
+  let explain: ExplainRecord;
   try {
-    explainResult = JSON.parse(explainOutput);
+    explain = JSON.parse(explainOutput);
   } catch {
-    return formatLocateOnly(params.symbol, results);
+    return formatLocateOnly(params.symbol, entity);
   }
+  if (!explain.facts && !explain.role) return formatLocateOnly(params.symbol, entity);
 
-  return formatResult(params.symbol, results, explainResult);
+  return formatResult(params.symbol, entity, explain);
 }
 
-function formatLocateOnly(
+/** The fields `ix locate --format json` emits (Ix commands/locate.ts). */
+type LocateRecord = {
+  resolvedTarget?: { id?: string; kind?: string; name?: string; path?: string } | null;
+  resolutionMode?: string;
+  candidates?: { name?: string; kind?: string; path?: string }[];
+  lineRange?: { start?: number; end?: number };
+  systemPath?: { name?: string; kind?: string }[] | null;
+};
+
+/** The fields of `ix explain --format json` this tool reads (Ix commands/explain.ts). */
+type ExplainRecord = {
+  facts?: {
+    path?: string;
+    callerCount?: number;
+    calleeCount?: number;
+    dependentCount?: number;
+    memberCount?: number;
+    stale?: boolean;
+  };
+  role?: { role?: string; confidence?: string };
+  importance?: { level?: string; category?: string };
+  rendered?: { explanation?: string };
+};
+
+type Entity = {
+  name: string;
+  kind: string;
+  path?: string;
+  lines?: { start?: number; end?: number };
+  system: string[];
+};
+
+function where(e: Entity): string {
+  if (!e.path) return "—";
+  return e.lines?.start !== undefined ? `${e.path}:${e.lines.start}` : e.path;
+}
+
+function formatCandidates(
   symbol: string,
-  results: { name: string; kind: string; file: string }[]
+  candidates: { name?: string; kind?: string; path?: string }[],
 ): string {
   const lines = [
     `## ix-query: ${symbol}`,
     "",
-    "**Matches found:**",
+    `**Ambiguous:** ${candidates.length} entities match. Narrow with \`kind\` or \`path\`:`,
   ];
-  for (const r of results.slice(0, 5)) {
-    lines.push(`- \`${r.name}\` (${r.kind}) — ${r.file}`);
+  for (const c of candidates.slice(0, 10)) {
+    lines.push(`- \`${c.name ?? "?"}\` (${c.kind ?? "?"}) — ${c.path ?? "—"}`);
   }
+  return lines.join("\n");
+}
+
+function formatLocateOnly(symbol: string, entity: Entity): string {
+  const lines = [
+    `## ix-query: ${symbol}`,
+    "",
+    `**Found:** \`${entity.name}\` (${entity.kind}) — ${where(entity)}`,
+  ];
+  if (entity.system.length > 0) lines.push(`**Subsystem:** ${entity.system.join(" › ")}`);
   lines.push("", "_explain data unavailable — run ix map to refresh graph_");
   return lines.join("\n");
 }
 
-function formatResult(
-  symbol: string,
-  results: { name: string; kind: string; file: string }[],
-  explain: {
-    name?: string;
-    kind?: string;
-    file?: string;
-    role?: string;
-    importance?: string;
-    callerCount?: number;
-    calleeCount?: number;
-    confidence?: number;
-    subsystem?: string;
-    summary?: string;
-  }
-): string {
-  const confidence = explain.confidence ?? 1;
-  const confidenceNote =
-    confidence < 0.7 ? " ⚠ [uncertain — confidence < 0.7, run `ix map` to refresh]" : "";
-
+function formatResult(symbol: string, entity: Entity, explain: ExplainRecord): string {
+  const facts = explain.facts ?? {};
   const lines = [
     `## ix-query: ${symbol}`,
     "",
-    `**Name:** \`${explain.name ?? results[0].name}\``,
-    `**Kind:** ${explain.kind ?? results[0].kind}`,
-    `**File:** ${explain.file ?? results[0].file}`,
+    `**Name:** \`${entity.name}\``,
+    `**Kind:** ${entity.kind}`,
+    `**File:** ${where({ ...entity, path: entity.path ?? facts.path })}`,
   ];
 
-  if (explain.subsystem) lines.push(`**Subsystem:** ${explain.subsystem}`);
-  if (explain.role) lines.push(`**Role:** ${explain.role}`);
-  if (explain.importance) lines.push(`**Importance:** ${explain.importance}`);
-  if (explain.callerCount !== undefined)
-    lines.push(`**Callers:** ${explain.callerCount}`);
-  if (explain.calleeCount !== undefined)
-    lines.push(`**Callees:** ${explain.calleeCount}`);
-  if (explain.summary) lines.push("", explain.summary);
-  if (confidenceNote) lines.push("", confidenceNote);
-
-  if (results.length > 1) {
-    lines.push(
-      "",
-      `_${results.length - 1} other match(es) — use --kind or --path to narrow_`
-    );
+  if (entity.system.length > 0) lines.push(`**Subsystem:** ${entity.system.join(" › ")}`);
+  if (explain.role?.role) {
+    const conf = explain.role.confidence ? ` (${explain.role.confidence} confidence)` : "";
+    lines.push(`**Role:** ${explain.role.role}${conf}`);
   }
+  if (explain.importance?.level) {
+    const cat = explain.importance.category ? ` — ${explain.importance.category}` : "";
+    lines.push(`**Importance:** ${explain.importance.level}${cat}`);
+  }
+  if (facts.callerCount !== undefined) lines.push(`**Callers:** ${facts.callerCount}`);
+  if (facts.calleeCount !== undefined) lines.push(`**Callees:** ${facts.calleeCount}`);
+  if (facts.dependentCount !== undefined) lines.push(`**Dependents:** ${facts.dependentCount}`);
+  if (facts.memberCount) lines.push(`**Members:** ${facts.memberCount}`);
+  if (explain.rendered?.explanation) lines.push("", explain.rendered.explanation);
+  if (facts.stale) lines.push("", "⚠ [stale — run `ix map` to refresh]");
 
   return lines.join("\n");
 }

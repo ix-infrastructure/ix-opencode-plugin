@@ -11,6 +11,7 @@
 import { runIx, failureDetail } from "../runtime/cli.ts";
 import { tryLlm } from "../runtime/llm.ts";
 import { formatIxError, parseIxError } from "../runtime/ix-error.ts";
+import { toolCwd } from "../runtime/paths.ts";
 
 export const name = "ix-stats";
 export const description =
@@ -26,7 +27,7 @@ type Params = Record<string, never>;
 type Context = { directory: string; worktree?: string };
 
 export async function execute(_params: Params, context: Context): Promise<string> {
-  const dir = context.worktree ?? context.directory;
+  const dir = toolCwd(context);
 
   // `ix stats --format llm` emits the same counts this tool rebuilds by hand,
   // in two lines instead of a bullet list. Returns null on an older CLI, so the
@@ -47,10 +48,8 @@ export async function execute(_params: Params, context: Context): Promise<string
   if (ixErr) return formatIxError("## ix-stats", ixErr);
 
   let raw: {
-    files?: number;
     nodes?: { total?: number; byKind?: { kind?: string; count?: number }[] };
-    edges?: { total?: number; byPredicate?: { kind?: string; count?: number }[] };
-    language?: string;
+    edges?: { total?: number; byPredicate?: { predicate?: string; count?: number }[] };
   };
   try {
     raw = JSON.parse(output);
@@ -62,7 +61,8 @@ export async function execute(_params: Params, context: Context): Promise<string
 
   const totalNodes = raw.nodes?.total ?? 0;
   const totalEdges = raw.edges?.total ?? 0;
-  const fileCount = raw.files ?? countByKind(raw.nodes?.byKind, "file");
+  // There is no top-level file count: files are one node kind among many.
+  const fileCount = countByKind(raw.nodes?.byKind, "file");
 
   if (totalNodes === 0) {
     return [
@@ -76,7 +76,6 @@ export async function execute(_params: Params, context: Context): Promise<string
   lines.push(`- Files indexed: ${fileCount}`);
   lines.push(`- Total nodes: ${totalNodes}`);
   lines.push(`- Total edges: ${totalEdges}`);
-  if (raw.language) lines.push(`- Primary language: ${raw.language}`);
 
   if (raw.nodes?.byKind && raw.nodes.byKind.length > 0) {
     lines.push("", "**Nodes by kind:**");
@@ -90,8 +89,8 @@ export async function execute(_params: Params, context: Context): Promise<string
   if (raw.edges?.byPredicate && raw.edges.byPredicate.length > 0) {
     lines.push("", "**Edges by type:**");
     for (const entry of raw.edges.byPredicate) {
-      if (entry.kind && entry.count && entry.count > 0) {
-        lines.push(`- ${entry.kind}: ${entry.count}`);
+      if (entry.predicate && entry.count && entry.count > 0) {
+        lines.push(`- ${entry.predicate}: ${entry.count}`);
       }
     }
   }

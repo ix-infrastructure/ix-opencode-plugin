@@ -10,6 +10,7 @@
 import { safeRun } from "../runtime/cli.ts";
 import { tryLlm } from "../runtime/llm.ts";
 import { ixErrorLines, parseIxError } from "../runtime/ix-error.ts";
+import { toolCwd } from "../runtime/paths.ts";
 
 export const name = "ix-neighbors";
 export const description =
@@ -60,7 +61,7 @@ export async function execute(
   params: Params,
   context: Context
 ): Promise<string> {
-  const dir = context.worktree ?? context.directory;
+  const dir = toolCwd(context);
   const direction = params.direction ?? "all";
   const limit = Math.min(params.limit ?? 15, 30);
   const depth = Math.min(params.depth ?? 2, 3);
@@ -117,34 +118,44 @@ async function fetchSection(
       dir,
     );
     if (output === null) return `**${direction}:** unavailable\n`;
-    // An error record has no `items`; reading it as a result reported "none".
+    // An error record has no `results`; reading it as a result reported "none".
     const ixErr = parseIxError(output);
     if (ixErr) return `**${capitalize(direction)}:**\n${ixErrorLines(ixErr).join("\n")}\n`;
 
-    let result: {
-      items?: { name: string; kind?: string; file?: string; subsystem?: string; callCount?: number }[];
-      count?: number;
-    };
+    let result: NeighborsRecord;
     try {
       result = JSON.parse(output);
     } catch {
       return `**${direction}:** (parse error)\n`;
     }
 
-    const items = result.items ?? [];
+    const label = capitalize(direction);
+
+    // `ix depends` answers with a dependency tree, not a flat list.
+    if (direction === "depends") {
+      const tree = result.tree ?? [];
+      if (tree.length === 0) return `**${direction}:** none\n`;
+      const visited = result.traversal?.nodesVisited;
+      const lines = [`**${label}**${visited !== undefined ? ` (${visited} nodes)` : ""}:`];
+      renderTree(tree, lines, "", 0);
+      if (result.traversal?.depthLimited) lines.push("_depth limit reached; there may be more below_");
+      return lines.join("\n") + "\n";
+    }
+
+    // callers / callees / imported-by: `results`, counted under `summary`.
+    const items = result.results ?? [];
     if (items.length === 0) {
       return `**${direction}:** none\n`;
     }
 
-    const label = capitalize(direction);
-    const total = result.count ?? items.length;
+    const total = result.summary?.total ?? items.length;
     const lines = [`**${label}** (${total} total, showing ${items.length}):`];
 
     for (const item of items) {
-      const parts = [`\`${item.name}\``];
+      const parts = [`\`${item.name ?? "?"}\``];
       if (item.kind) parts.push(`(${item.kind})`);
-      if (item.subsystem) parts.push(`[${item.subsystem}]`);
-      if (item.file) parts.push(`— ${item.file}`);
+      const at = item.path ?? item.site?.path;
+      if (at) parts.push(`— ${at}${item.site?.line !== undefined ? `:${item.site.line}` : ""}`);
       lines.push(`- ${parts.join(" ")}`);
     }
 
@@ -153,6 +164,41 @@ async function fetchSection(
     const msg = err instanceof Error ? err.message : String(err);
     return `**${direction}:** unavailable — ${msg}\n`;
   }
+}
+
+type DependsNode = {
+  name?: string;
+  kind?: string;
+  rel?: string;
+  path?: string;
+  cycle?: boolean;
+  children?: DependsNode[];
+};
+
+/** The fields of the neighbour commands' `--format json` this tool reads. */
+type NeighborsRecord = {
+  results?: {
+    name?: string;
+    kind?: string;
+    path?: string;
+    site?: { path?: string; line?: number };
+  }[];
+  summary?: { total?: number; shown?: number };
+  tree?: DependsNode[];
+  traversal?: { nodesVisited?: number; depthLimited?: boolean };
+};
+
+function renderTree(nodes: DependsNode[], lines: string[], indent: string, depth: number): void {
+  for (const node of nodes.slice(0, 15)) {
+    const kind = node.kind ? ` (${node.kind})` : "";
+    const path = node.path ? ` — ${node.path}` : "";
+    const cycle = node.cycle ? " ↺" : "";
+    lines.push(`${indent}- \`${node.name ?? "?"}\`${kind}${path}${cycle}`);
+    if (node.children && node.children.length > 0 && depth < 3) {
+      renderTree(node.children, lines, indent + "  ", depth + 1);
+    }
+  }
+  if (nodes.length > 15) lines.push(`${indent}- … ${nodes.length - 15} more`);
 }
 
 function capitalize(s: string): string {
