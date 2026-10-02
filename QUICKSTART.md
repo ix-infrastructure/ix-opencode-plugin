@@ -8,7 +8,7 @@ Get graph-first reasoning into OpenCode in under 5 minutes.
 
 - [OpenCode](https://opencode.ai) installed
 - [Ix Memory](https://github.com/ix-infrastructure/Ix) CLI (`ix`) installed and connected to a workspace
-- [Bun](https://bun.sh) installed — **required** (OpenCode's plugin runtime; all tools use Bun's `$` shell API)
+- [Bun](https://bun.sh) installed — **required** (OpenCode's plugin runtime; every `ix` call goes through `Bun.spawn`)
 
 Verify:
 ```bash
@@ -72,12 +72,14 @@ cd /your/project
 opencode
 ```
 
-The plugin runs `ix map --silent` automatically on startup if the graph is empty. For large codebases (>500 files), you can pre-build the graph to avoid the wait:
+The plugin does not build the graph for you. Build it once:
 
 ```bash
 ix map        # builds the graph (30s–2min depending on codebase size)
 ix status     # verify the graph is present
 ```
+
+After that, edits trigger a guarded, debounced `ix map` of the repo root in the background (see [ARCHITECTURE.md](./ARCHITECTURE.md)).
 
 ---
 
@@ -143,7 +145,7 @@ Expected output:
 ## ix-health
 
 **Status:** OK
-**CLI:** ix 2.1.0 — installed
+**CLI:** ix x.x.x — installed
 **Graph:** indexed (312 files)
 ```
 
@@ -164,7 +166,7 @@ Once installed, the plugin provides:
 | Tools | 17 | TypeScript functions OpenCode can call during any task |
 | Slash commands | 8 | Phased reasoning skills (`/ix-understand`, `/ix-investigate`, etc.) |
 | Agents | 5 | Specialized autonomous agents for exploration, debugging, refactoring, auditing |
-| Hooks | 5 | Pre-edit gate, read hints, grep interception, post-edit ingest, stale detection |
+| Hooks | 2 | Post-edit graph refresh, stale-graph note on ix-* tool output |
 | Context | 1 | `AGENTS.md` injected into every session as always-on guidance |
 
 ### All 17 tools
@@ -198,4 +200,4 @@ You don't need to invoke tools explicitly — the hooks and `AGENTS.md` nudge Op
 - [ARCHITECTURE.md](./ARCHITECTURE.md) — design decisions and component overview
 - [TOOL_CONTRACT.md](./TOOL_CONTRACT.md) — tool API reference and output format
 - [AGENTS.md](./AGENTS.md) — always-on context injected into every session
-- [ROADMAP.md](./ROADMAP.md) — implementation progress and upcoming work
+- [ROADMAP.md](./ROADMAP.md) — task log of the 1.0 overhaul (historical)

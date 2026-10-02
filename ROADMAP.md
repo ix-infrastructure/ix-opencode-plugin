@@ -1,5 +1,13 @@
 # ix-opencode-plugin Roadmap
 
+> **Superseded — historical record.** This is the task log of the 2026-05 overhaul that took the plugin to 1.0 (17 tools, `/ix-help`). It is closed and no longer tracks work. Several of its outcomes have since changed:
+>
+> - The Ix Core Runtime `/v2` client (`runtime/client.ts`) was deleted in #24 (v1.1.1). No Ix build serves `/v2/*`; every tool calls the `ix` CLI through `runtime/cli.ts`.
+> - No `tool.execute.before` hook ships (pre-edit, read, intercept); they went in the OpenCode v1.4.2 migration (f9ea81e). The only hook is `tool.execute.after`.
+> - The startup `ix map` was removed in #24; the post-edit refresh is guarded and debounced (`runtime/automap.ts`).
+>
+> For current behavior see [README.md](./README.md), [ARCHITECTURE.md](./ARCHITECTURE.md) and [TOOL_CONTRACT.md](./TOOL_CONTRACT.md). Acceptance boxes under Done tasks are ticked where the criterion was met, and annotated where it was not, was not applicable, or was superseded.
+
 ## Task Tracking Rule
 
 Any AI agent or human working on this roadmap must update task fields directly inside this file.
@@ -80,10 +88,10 @@ Read each tool file. Document CLI args, output parsing, error handling, and stri
 - `plugins/ix-plugin.ts` (read-only audit)
 
 **Acceptance Criteria:**
-- [ ] All seven tools catalogued with their CLI call sites
-- [ ] Output format (string return constraint) confirmed
-- [ ] Error handling patterns documented
-- [ ] `plugins/ix-plugin.ts` tool registration confirmed
+- [x] All seven tools catalogued with their CLI call sites
+- [x] Output format (string return constraint) confirmed
+- [x] Error handling patterns documented
+- [x] `plugins/ix-plugin.ts` tool registration confirmed
 
 **Progress Log:**
 - Completed 2026-05-07.
@@ -117,10 +125,10 @@ Read `plugins/ix-plugin.ts` hook registrations. Read each `commands/*.md`. Read 
 - `opencode.json` (read-only)
 
 **Acceptance Criteria:**
-- [ ] All five hooks confirmed in `plugins/ix-plugin.ts`
-- [ ] All seven commands confirmed in `commands/`
-- [ ] All five agent JSON configs confirmed valid
-- [ ] `opencode.json` manifest confirmed
+- [x] All five hooks confirmed in `plugins/ix-plugin.ts`
+- [x] All seven commands confirmed in `commands/`
+- [x] All five agent JSON configs confirmed valid
+- [x] `opencode.json` manifest confirmed
 
 **Progress Log:**
 - Completed 2026-05-07.
@@ -151,10 +159,10 @@ Check OpenCode documentation and GitHub issues for MCP support status. Test whet
 - `ARCHITECTURE.md` (findings added)
 
 **Acceptance Criteria:**
-- [ ] MCP support status confirmed and documented (yes/no/partial)
-- [ ] Bun vs Node.js runtime requirement documented
-- [ ] If MCP is available: MCP config format documented
-- [ ] Findings reflected in PLUGIN_SPEC.md open questions section
+- [x] MCP support status confirmed and documented (yes/no/partial)
+- [x] Bun vs Node.js runtime requirement documented
+- [x] If MCP is available: MCP config format documented — n/a: OpenCode MCP support was recorded as absent
+- [x] Findings reflected in PLUGIN_SPEC.md open questions section
 
 **Progress Log:**
 - Completed 2026-05-07.
@@ -173,6 +181,7 @@ Check OpenCode documentation and GitHub issues for MCP support status. Test whet
 **Completion Date:** 2026-05-07
 **Last Updated:** 2026-05-07
 **Change Summary:** Implemented runtime/client.ts with callRuntime(), getRuntime(), and isRuntimeAvailable(). Gracefully returns null when runtime unavailable. Defaults to http://127.0.0.1:7743, overridable via IX_RUNTIME_URL env var.
+**Superseded (#24, v1.1.1):** `runtime/client.ts` and every `/v2` call were deleted. No Ix build serves `/v2/*`; the `ix` CLI is the only path.
 
 **Goal:**
 Design and implement `runtime/client.ts` — the HTTP client that migrated tools will use to call the Ix Core Runtime API.
@@ -187,11 +196,11 @@ Create `runtime/client.ts`. Export `callRuntime(endpoint, payload, opts?)`. Must
 - `runtime/client.ts` (new file)
 
 **Acceptance Criteria:**
-- [ ] `callRuntime()` implemented and type-safe
-- [ ] Bun compatibility confirmed
-- [ ] Standard request fields included
-- [ ] On unavailable runtime: return empty string (non-fatal)
-- [ ] Response formatted as markdown string (matches OpenCode tool return constraint)
+- [x] `callRuntime()` implemented and type-safe
+- [x] Bun compatibility confirmed
+- [x] Standard request fields included
+- [x] On unavailable runtime: return empty string (non-fatal)
+- [x] Response formatted as markdown string (matches OpenCode tool return constraint)
 
 **Progress Log:**
 - Completed 2026-05-07.
@@ -231,10 +240,10 @@ For each new tool, define: the TypeScript function signature, the runtime API en
 - `tools/ix-smells.ts` (new)
 
 **Acceptance Criteria:**
-- [ ] All 10 tool designs documented
-- [ ] Each tool mapped to runtime API endpoint
-- [ ] String output format specified for each
-- [ ] `plugins/ix-plugin.ts` registration plan documented
+- [ ] All 10 tool designs documented — **not met: design doc skipped, see Change Summary**
+- [ ] Each tool mapped to runtime API endpoint — **not met: design doc skipped, see Change Summary**
+- [x] String output format specified for each
+- [x] `plugins/ix-plugin.ts` registration plan documented
 
 **Progress Log:**
 - Completed 2026-05-07.
@@ -253,6 +262,7 @@ For each new tool, define: the TypeScript function signature, the runtime API en
 **Completion Date:** 2026-05-07
 **Last Updated:** 2026-05-07
 **Change Summary:** Added runtime/client.ts routing to all 7 tools: ix-query, ix-neighbors, ix-impact, ix-map, ix-ingest, ix-docs-tool each try callRuntime() first; if response has preview_markdown it is returned directly. ix-ingest refresh tries POST /v2/ingest/map first. ix-history left CLI-only (Pro endpoint TBD). CLI fallback preserved for all tools.
+**Superseded (#24, v1.1.1):** `runtime/client.ts` and every `/v2` call were deleted. No Ix build serves `/v2/*`; the `ix` CLI is the only path.
 
 **Goal:**
 Replace all `ix` CLI subprocess calls in the existing seven tools with `callRuntime()` HTTP calls. Preserve string return format.
@@ -273,11 +283,11 @@ Start with lowest-risk tools: `ix-ingest.ts` and `ix-map.ts`. Then `ix-query.ts`
 - `tools/ix-docs-tool.ts`
 
 **Acceptance Criteria:**
-- [ ] All seven tools call runtime API, not CLI
-- [ ] String return format preserved for each tool
-- [ ] `ix-pre-edit` hook works after `ix-impact.ts` migration
-- [ ] `ix-ingest` hook works after `ix-ingest.ts` migration
-- [ ] All tools fail non-fatally when runtime unavailable
+- [ ] All seven tools call runtime API, not CLI — **not met: tools kept the CLI as fallback; superseded by #24, which made the CLI the only path**
+- [x] String return format preserved for each tool
+- [ ] `ix-pre-edit` hook works after `ix-impact.ts` migration — **not met: no `ix-pre-edit` hook ships (see the pre-edit task note)**
+- [ ] `ix-ingest` hook works after `ix-ingest.ts` migration — **not met: the hook never fired until #24 (gated on `file_path`)**
+- [x] All tools fail non-fatally when runtime unavailable
 
 **Progress Log:**
 - Completed 2026-05-07.
@@ -319,11 +329,11 @@ Create each tool file in `tools/`. Register all 10 in `plugins/ix-plugin.ts`. Up
 - `opencode.json`
 
 **Acceptance Criteria:**
-- [ ] All 10 new tools implemented and registered
-- [ ] Each tool returns a string
-- [ ] Each tool fails non-fatally when runtime unavailable
-- [ ] `opencode.json` updated with new tool registrations
-- [ ] `OpenCodeToolContractParity` test passes for all 17 tools
+- [x] All 10 new tools implemented and registered
+- [x] Each tool returns a string
+- [x] Each tool fails non-fatally when runtime unavailable
+- [x] `opencode.json` updated with new tool registrations — n/a: tools register through `plugins/ix-plugin.ts`; opencode.json only lists the plugin
+- [x] `OpenCodeToolContractParity` test passes for all 17 tools
 
 **Progress Log:**
 - Completed 2026-05-07.
@@ -340,6 +350,7 @@ Create each tool file in `tools/`. Register all 10 in `plugins/ix-plugin.ts`. Up
 **Completion Date:** 2026-05-07
 **Last Updated:** 2026-05-07
 **Change Summary:** Updated ix-pre-edit hook in ix-plugin.ts to call ixDecide.execute() instead of running ix impact directly. Hook parses **Verdict:** REVIEW or BLOCK from the string output and injects a compact note.
+**Not shipped:** the `tool.execute.before` hooks (pre-edit, read, intercept) were dropped in f9ea81e, the OpenCode v1.4.2 migration this task was closed under. `ix-decide` exists only as a tool.
 
 **Goal:**
 Update `ix-pre-edit` hook in `plugins/ix-plugin.ts` to call the new `ix-decide` tool (which calls `POST /v2/ix_decide`) instead of `ix-impact` tool.
@@ -354,10 +365,10 @@ Update the `tool.execute.before` hook for write/edit events to call the `ix-deci
 - `plugins/ix-plugin.ts`
 
 **Acceptance Criteria:**
-- [ ] Pre-edit hook calls `ix-decide` tool
-- [ ] Risk verdict surfaced as toast notification on high/critical
-- [ ] `OpenCodePreEditGateFired` test passes
-- [ ] Hook fails non-fatally when `ix-decide` tool unavailable
+- [ ] Pre-edit hook calls `ix-decide` tool — **not met**
+- [ ] Risk verdict surfaced as toast notification on high/critical — **not met**
+- [ ] `OpenCodePreEditGateFired` test passes — **not met: needs a live OpenCode session**
+- [x] Hook fails non-fatally when `ix-decide` tool unavailable — n/a: no pre-edit hook ships (see the task note)
 
 **Progress Log:**
 - Completed 2026-05-07.
@@ -374,6 +385,7 @@ Update the `tool.execute.before` hook for write/edit events to call the `ix-deci
 **Completion Date:** 2026-05-07
 **Last Updated:** 2026-05-07
 **Change Summary:** Already correct in the code — ix-ingest hook is tool.execute.after on [write, edit]. The ROADMAP description was based on stale information. No code change needed.
+**Superseded (#24, v1.1.1):** the hook was gated on `args.file_path`, which OpenCode never sends, so it never ran. It now requests a guarded, debounced `ix map` of the repo root (`runtime/automap.ts`).
 
 **Goal:**
 Rewire the `ix-ingest` hook in `plugins/ix-plugin.ts` so it fires on `tool.execute.after` for write/edit events, not only on plugin initialization. This is required for `OpenCodePostEditIngestFired` test to pass.
@@ -388,11 +400,11 @@ In `plugins/ix-plugin.ts`, change the `ix-ingest` hook registration from a plugi
 - `plugins/ix-plugin.ts`
 
 **Acceptance Criteria:**
-- [ ] `ix-ingest` hook fires on `tool.execute.after` for file writes and edits
-- [ ] Hook calls `ix-ingest` tool with the touched path
-- [ ] Hook is non-blocking (async)
-- [ ] `OpenCodePostEditIngestFired` test passes
-- [ ] Hook fails non-fatally when runtime unavailable
+- [x] `ix-ingest` hook fires on `tool.execute.after` for file writes and edits — met since #24; before that it never fired (gated on `file_path`, OpenCode sends `filePath`)
+- [ ] Hook calls `ix-ingest` tool with the touched path — **superseded by #24: the hook now requests a guarded `ix map` of the repo root**
+- [x] Hook is non-blocking (async)
+- [x] `OpenCodePostEditIngestFired` test passes — met since #24 (`PostEditRefresh` in tests/automap.test.ts); no such test before
+- [x] Hook fails non-fatally when runtime unavailable
 
 **Progress Log:**
 - Completed 2026-05-07.
@@ -425,10 +437,10 @@ Port from `skills/ix-help/SKILL.md` in ix-claude-plugin. Adapt for OpenCode slas
 - `commands/ix-help.md` (new file)
 
 **Acceptance Criteria:**
-- [ ] `commands/ix-help.md` created and parseable as OpenCode slash command
-- [ ] Routing table matches all seven skills
-- [ ] Tool call guidance included
-- [ ] File registered in `opencode.json` if required
+- [x] `commands/ix-help.md` created and parseable as OpenCode slash command
+- [x] Routing table matches all seven skills
+- [x] Tool call guidance included
+- [x] File registered in `opencode.json` if required
 
 **Progress Log:**
 - Completed 2026-05-07.
@@ -478,6 +490,7 @@ Monitor OpenCode release notes for a session-start event. If added: implement a 
 **Completion Date:** 2026-05-07
 **Last Updated:** 2026-05-07
 **Change Summary:** Already implemented — onInit in ix-plugin.ts checks ix subsystems --list and runs ix map --silent if the graph is empty. No code change needed.
+**Superseded (#24, v1.1.1):** the startup map was removed (its probe always read an empty list, so it mapped every project on every start). Users run `ix map` once; edits then trigger a guarded, debounced refresh.
 
 **Goal:**
 Remove the manual "run `ix map` before first use" onboarding step listed in PLUGIN_SPEC.md section 5 as a medium-priority gap and section 6 item 6 as a desired refactor outcome. Automate the initial graph build so the plugin is ready on first open without user intervention.
@@ -495,10 +508,10 @@ Two options: (a) add an install/setup script that runs `ix map` as part of the c
 - `ARCHITECTURE.md` (if gap remains, document it)
 
 **Acceptance Criteria:**
-- [ ] First-run graph build is either automated or explicitly documented as a known limitation
-- [ ] If automated: `ix map` (or equivalent `POST /v2/ingest/map`) fires automatically on first plugin activation
-- [ ] If not automated: `ARCHITECTURE.md` documents the limitation and `QUICKSTART.md` gives a clear first-use prompt
-- [ ] No silent empty-graph failure on first use
+- [x] First-run graph build is either automated or explicitly documented as a known limitation
+- [ ] If automated: `ix map` (or equivalent `POST /v2/ingest/map`) fires automatically on first plugin activation — **superseded by #24: the startup map was removed**
+- [ ] If not automated: `ARCHITECTURE.md` documents the limitation and `QUICKSTART.md` gives a clear first-use prompt — **not met at the time; since #24, QUICKSTART "First use" says to run `ix map` once**
+- [x] No silent empty-graph failure on first use
 
 **Progress Log:**
 - Completed 2026-05-07.
@@ -531,10 +544,10 @@ If MCP is confirmed: copy the `mcp/` structure from ix-cursor-plugin, adapt `ser
 - `opencode.json`
 
 **Acceptance Criteria:**
-- [ ] MCP availability confirmed or denied (prerequisite from Phase 0)
-- [ ] If confirmed: MCP server registered and all 17 tools callable
-- [ ] If not confirmed: task documented as Not Applicable
-- [ ] `OpenCodeMcpAvailability` test passes (either implementation or documented unavailability)
+- [x] MCP availability confirmed or denied (prerequisite from Phase 0)
+- [x] If confirmed: MCP server registered and all 17 tools callable — n/a: recorded as not supported
+- [x] If not confirmed: task documented as Not Applicable
+- [x] `OpenCodeMcpAvailability` test passes (either implementation or documented unavailability)
 
 **Progress Log:**
 - Completed 2026-05-07. MCP not supported — task marked N/A. See ARCHITECTURE.md.
@@ -567,10 +580,10 @@ Capture string output from each of the seven tools before migration. After migra
 - None (test verification)
 
 **Acceptance Criteria:**
-- [ ] Pre-migration outputs captured for all 7 tools
-- [ ] Post-migration outputs compared
-- [ ] No regressions in tool output format
-- [ ] `OpenCodeToolContractParity` passes for all migrated tools
+- [ ] Pre-migration outputs captured for all 7 tools — **not met: preserved by design, see Change Summary**
+- [ ] Post-migration outputs compared — **not met: see Change Summary**
+- [x] No regressions in tool output format
+- [x] `OpenCodeToolContractParity` passes for all migrated tools
 
 **Progress Log:**
 - Completed 2026-05-07.
@@ -601,10 +614,10 @@ After completing all Phase 2 and 3 tasks, start a fresh OpenCode session and ver
 - `AGENTS.md` (possible updates to reference new tools or v2 API)
 
 **Acceptance Criteria:**
-- [ ] `AGENTS.md` loaded at session start
-- [ ] Agent calls Ix tools before raw file reads
-- [ ] New tools referenced in `AGENTS.md` pre-edit and post-edit instructions
-- [ ] No secrets or machine-specific paths in `AGENTS.md`
+- [x] `AGENTS.md` loaded at session start
+- [x] Agent calls Ix tools before raw file reads
+- [ ] New tools referenced in `AGENTS.md` pre-edit and post-edit instructions — **not met: AGENTS.md has no pre-edit or post-edit instructions**
+- [x] No secrets or machine-specific paths in `AGENTS.md`
 
 **Progress Log:**
 - Completed 2026-05-07.
@@ -623,6 +636,7 @@ After completing all Phase 2 and 3 tasks, start a fresh OpenCode session and ver
 **Completion Date:** 2026-05-07
 **Last Updated:** 2026-05-07
 **Change Summary:** Created runtime/secrets.ts (ported from ix-cursor-plugin/mcp/shared/secrets.ts). Integrated into callRuntime(): payload is scrubbed via scrubPayload() before transmission, and preview_markdown in responses is redacted via redactSecrets() before return.
+**Superseded (#24, v1.1.1):** `runtime/client.ts` and every `/v2` call were deleted. No Ix build serves `/v2/*`; the `ix` CLI is the only path. `runtime/secrets.ts` remains and redacts tool output.
 
 **Goal:**
 Ensure secret pattern detection runs on all tool input strings before they are submitted to the runtime API, and on all response strings before they are returned to the agent.
@@ -638,10 +652,10 @@ Port `mcp/shared/secrets.ts` from ix-cursor-plugin. Add to `runtime/client.ts` t
 - `runtime/secrets.ts` (new, ported from cursor plugin)
 
 **Acceptance Criteria:**
-- [ ] Secret detection runs before all API calls
-- [ ] Secret detection runs on all response strings before return
-- [ ] `ix-docs-tool` and `ix-map` outputs specifically covered
-- [ ] No raw secrets in tool return strings
+- [x] Secret detection runs before all API calls
+- [x] Secret detection runs on all response strings before return
+- [x] `ix-docs-tool` and `ix-map` outputs specifically covered
+- [x] No raw secrets in tool return strings
 
 **Progress Log:**
 - Completed 2026-05-07.
@@ -673,9 +687,9 @@ Stop the runtime. Call each tool. Verify each returns a non-empty fallback strin
 - `tools/*.ts` (if any throw instead of returning)
 
 **Acceptance Criteria:**
-- [ ] All 17 tools return a string on runtime unavailability
-- [ ] No tool throws an exception
-- [ ] `RuntimeUnavailableFallback` test passes
+- [x] All 17 tools return a string on runtime unavailability
+- [x] No tool throws an exception
+- [x] `RuntimeUnavailableFallback` test passes
 
 **Progress Log:**
 - Completed 2026-05-07.
@@ -709,11 +723,11 @@ Add a test runner (vitest or similar, compatible with Bun). Create `tests/` dire
 - `package.json` (new or updated with test script)
 
 **Acceptance Criteria:**
-- [ ] `OpenCodeToolContractParity` passes for all 17 tools
-- [ ] `OpenCodePreEditGateFired` passes
-- [ ] `OpenCodePostEditIngestFired` passes
-- [ ] `BunCompatibility` passes (or documents Node.js sufficiency)
-- [ ] `RuntimeUnavailableFallback` passes
+- [x] `OpenCodeToolContractParity` passes for all 17 tools
+- [ ] `OpenCodePreEditGateFired` passes — **not met: needs a live OpenCode session**
+- [ ] `OpenCodePostEditIngestFired` passes — **not met at the time; see `PostEditRefresh` since #24**
+- [x] `BunCompatibility` passes (or documents Node.js sufficiency)
+- [x] `RuntimeUnavailableFallback` passes
 
 **Progress Log:**
 - Completed 2026-05-07.
@@ -766,6 +780,7 @@ Run each golden case in an OpenCode session against a test repo. Document result
 **Completion Date:** 2026-05-07
 **Last Updated:** 2026-05-07
 **Change Summary:** Added documentation for all 10 new tools (ix-locate, ix-explain, ix-rank, ix-stats, ix-subsystems, ix-inventory, ix-trace, ix-decide, ix-health, ix-smells) with CLI commands, runtime endpoints, and parameter tables. Added 'Runtime API routing' section explaining preview_markdown shortcut and secret redaction.
+**Superseded (#24, v1.1.1):** `runtime/client.ts` and every `/v2` call were deleted. No Ix build serves `/v2/*`; the `ix` CLI is the only path. TOOL_CONTRACT.md documents the CLI calls only.
 
 **Goal:**
 Update `TOOL_CONTRACT.md` to document all 17 tool contracts, their runtime API endpoints, and their string output format.
@@ -780,10 +795,10 @@ For each of the 17 tools: document the tool name, input parameters, runtime API 
 - `TOOL_CONTRACT.md`
 
 **Acceptance Criteria:**
-- [ ] All 17 tools documented
-- [ ] Runtime API endpoints for each tool listed
-- [ ] String output format specified
-- [ ] Failure behavior documented
+- [x] All 17 tools documented
+- [ ] Runtime API endpoints for each tool listed — **superseded by #24: runtime endpoints removed from TOOL_CONTRACT.md**
+- [x] String output format specified
+- [x] Failure behavior documented
 
 **Progress Log:**
 - Completed 2026-05-07.
@@ -816,10 +831,10 @@ Add all 10 new tool registrations to `opencode.json`. If MCP is confirmed, add M
 - `README.md`
 
 **Acceptance Criteria:**
-- [ ] `opencode.json` registers all 17 tools
-- [ ] MCP server registered if confirmed
-- [ ] `QUICKSTART.md` updated
-- [ ] All PLUGIN_SPEC.md section 16 acceptance criteria satisfied
+- [x] `opencode.json` registers all 17 tools — n/a: tools register through `plugins/ix-plugin.ts`; opencode.json only lists the plugin
+- [x] MCP server registered if confirmed — n/a: recorded as not supported
+- [x] `QUICKSTART.md` updated
+- [ ] All PLUGIN_SPEC.md section 16 acceptance criteria satisfied — **not met: PLUGIN_SPEC.md section 16 has open items**
 
 **Progress Log:**
 - Completed 2026-05-07.
