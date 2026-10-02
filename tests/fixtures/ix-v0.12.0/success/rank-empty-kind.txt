@@ -1,0 +1,2 @@
+rank metric=dependents kind=class evaluated=0 returned=0
+diagnostic message="No entities found for the given kind."

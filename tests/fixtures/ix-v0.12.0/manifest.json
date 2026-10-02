@@ -142,5 +142,449 @@
   "empty-graph/stats.txt": {
     "command": "ix stats --format llm",
     "exit": 0
+  },
+  "success/callees.json": {
+    "command": "ix callees tryLlm --limit 15 --format json",
+    "exit": 0,
+    "ix": "5ce416c",
+    "capturedFrom": "throwaway backend (compose project ix-ocfix, memory-layer 1.0.30)"
+  },
+  "success/callees.txt": {
+    "command": "ix callees tryLlm --limit 15 --format llm",
+    "exit": 0,
+    "ix": "5ce416c",
+    "capturedFrom": "throwaway backend (compose project ix-ocfix, memory-layer 1.0.30)"
+  },
+  "success/callers.json": {
+    "command": "ix callers runIx --limit 20 --format json",
+    "exit": 0,
+    "ix": "5ce416c",
+    "capturedFrom": "throwaway backend (compose project ix-ocfix, memory-layer 1.0.30)"
+  },
+  "success/callers.txt": {
+    "command": "ix callers runIx --limit 20 --format llm",
+    "exit": 0,
+    "ix": "5ce416c",
+    "capturedFrom": "throwaway backend (compose project ix-ocfix, memory-layer 1.0.30)"
+  },
+  "success/depends.json": {
+    "command": "ix depends runIx --depth 2 --format json",
+    "exit": 0,
+    "ix": "5ce416c",
+    "capturedFrom": "throwaway backend (compose project ix-ocfix, memory-layer 1.0.30)"
+  },
+  "success/depends.txt": {
+    "command": "ix depends runIx --depth 2 --format llm",
+    "exit": 0,
+    "ix": "5ce416c",
+    "capturedFrom": "throwaway backend (compose project ix-ocfix, memory-layer 1.0.30)"
+  },
+  "success/explain-file.json": {
+    "command": "ix explain runtime/cli.ts --format json",
+    "exit": 0,
+    "ix": "5ce416c",
+    "capturedFrom": "throwaway backend (compose project ix-ocfix, memory-layer 1.0.30)"
+  },
+  "success/explain-file.txt": {
+    "command": "ix explain runtime/cli.ts --format llm",
+    "exit": 0,
+    "ix": "5ce416c",
+    "capturedFrom": "throwaway backend (compose project ix-ocfix, memory-layer 1.0.30)"
+  },
+  "success/explain.json": {
+    "command": "ix explain runIx --format json",
+    "exit": 0,
+    "ix": "5ce416c",
+    "capturedFrom": "throwaway backend (compose project ix-ocfix, memory-layer 1.0.30)"
+  },
+  "success/explain.txt": {
+    "command": "ix explain runIx --format llm",
+    "exit": 0,
+    "ix": "5ce416c",
+    "capturedFrom": "throwaway backend (compose project ix-ocfix, memory-layer 1.0.30)"
+  },
+  "success/history.json": {
+    "command": "ix history runtime/cli.ts --format json",
+    "exit": 0,
+    "ix": "5ce416c",
+    "capturedFrom": "throwaway backend (compose project ix-ocfix, memory-layer 1.0.30)"
+  },
+  "success/history.txt": {
+    "command": "ix history runtime/cli.ts --format llm",
+    "exit": 0,
+    "ix": "5ce416c",
+    "capturedFrom": "throwaway backend (compose project ix-ocfix, memory-layer 1.0.30)"
+  },
+  "success/impact-file.json": {
+    "command": "ix impact runtime/cli.ts --format json",
+    "exit": 0,
+    "ix": "5ce416c",
+    "capturedFrom": "throwaway backend (compose project ix-ocfix, memory-layer 1.0.30)"
+  },
+  "success/impact-file.txt": {
+    "command": "ix impact runtime/cli.ts --format llm",
+    "exit": 0,
+    "ix": "5ce416c",
+    "capturedFrom": "throwaway backend (compose project ix-ocfix, memory-layer 1.0.30)"
+  },
+  "success/impact-function.json": {
+    "command": "ix impact runIx --format json",
+    "exit": 0,
+    "ix": "5ce416c",
+    "capturedFrom": "throwaway backend (compose project ix-ocfix, memory-layer 1.0.30)"
+  },
+  "success/impact-function.txt": {
+    "command": "ix impact runIx --format llm",
+    "exit": 0,
+    "ix": "5ce416c",
+    "capturedFrom": "throwaway backend (compose project ix-ocfix, memory-layer 1.0.30)"
+  },
+  "success/impact-leaf.json": {
+    "command": "ix impact capitalize --format json",
+    "exit": 0,
+    "ix": "5ce416c",
+    "capturedFrom": "throwaway backend (compose project ix-ocfix, memory-layer 1.0.30)"
+  },
+  "success/impact-leaf.txt": {
+    "command": "ix impact capitalize --format llm",
+    "exit": 0,
+    "ix": "5ce416c",
+    "capturedFrom": "throwaway backend (compose project ix-ocfix, memory-layer 1.0.30)"
+  },
+  "success/imported-by.json": {
+    "command": "ix imported-by runtime/cli.ts --limit 15 --format json",
+    "exit": 0,
+    "ix": "5ce416c",
+    "capturedFrom": "throwaway backend (compose project ix-ocfix, memory-layer 1.0.30)"
+  },
+  "success/imported-by.txt": {
+    "command": "ix imported-by runtime/cli.ts --limit 15 --format llm",
+    "exit": 0,
+    "ix": "5ce416c",
+    "capturedFrom": "throwaway backend (compose project ix-ocfix, memory-layer 1.0.30)"
+  },
+  "success/inventory-file.json": {
+    "command": "ix inventory --kind file --path runtime --format json",
+    "exit": 0,
+    "ix": "5ce416c",
+    "capturedFrom": "throwaway backend (compose project ix-ocfix, memory-layer 1.0.30)"
+  },
+  "success/inventory-file.txt": {
+    "command": "ix inventory --kind file --path runtime --format llm",
+    "exit": 0,
+    "ix": "5ce416c",
+    "capturedFrom": "throwaway backend (compose project ix-ocfix, memory-layer 1.0.30)"
+  },
+  "success/inventory-function.json": {
+    "command": "ix inventory --kind function --path runtime --format json",
+    "exit": 0,
+    "ix": "5ce416c",
+    "capturedFrom": "throwaway backend (compose project ix-ocfix, memory-layer 1.0.30)"
+  },
+  "success/inventory-function.txt": {
+    "command": "ix inventory --kind function --path runtime --format llm",
+    "exit": 0,
+    "ix": "5ce416c",
+    "capturedFrom": "throwaway backend (compose project ix-ocfix, memory-layer 1.0.30)"
+  },
+  "success/locate-ambiguous.json": {
+    "command": "ix locate execute --format json",
+    "exit": 1,
+    "ix": "5ce416c",
+    "capturedFrom": "throwaway backend (compose project ix-ocfix, memory-layer 1.0.30)"
+  },
+  "success/locate-ambiguous.txt": {
+    "command": "ix locate execute --format llm",
+    "exit": 1,
+    "ix": "5ce416c",
+    "capturedFrom": "throwaway backend (compose project ix-ocfix, memory-layer 1.0.30)"
+  },
+  "success/locate.json": {
+    "command": "ix locate runIx --format json",
+    "exit": 0,
+    "ix": "5ce416c",
+    "capturedFrom": "throwaway backend (compose project ix-ocfix, memory-layer 1.0.30)"
+  },
+  "success/locate.txt": {
+    "command": "ix locate runIx --format llm",
+    "exit": 0,
+    "ix": "5ce416c",
+    "capturedFrom": "throwaway backend (compose project ix-ocfix, memory-layer 1.0.30)"
+  },
+  "success/map.json": {
+    "command": "ix map --format json",
+    "exit": 0,
+    "ix": "5ce416c",
+    "capturedFrom": "throwaway backend (compose project ix-ocfix, memory-layer 1.0.30)"
+  },
+  "success/map.txt": {
+    "command": "ix map --format llm",
+    "exit": 0,
+    "ix": "5ce416c",
+    "capturedFrom": "throwaway backend (compose project ix-ocfix, memory-layer 1.0.30)"
+  },
+  "success/overview-function.json": {
+    "command": "ix overview runIx --format json",
+    "exit": 0,
+    "ix": "5ce416c",
+    "capturedFrom": "throwaway backend (compose project ix-ocfix, memory-layer 1.0.30)"
+  },
+  "success/overview-function.txt": {
+    "command": "ix overview runIx --format llm",
+    "exit": 0,
+    "ix": "5ce416c",
+    "capturedFrom": "throwaway backend (compose project ix-ocfix, memory-layer 1.0.30)"
+  },
+  "success/overview.json": {
+    "command": "ix overview runtime/cli.ts --format json",
+    "exit": 0,
+    "ix": "5ce416c",
+    "capturedFrom": "throwaway backend (compose project ix-ocfix, memory-layer 1.0.30)"
+  },
+  "success/overview.txt": {
+    "command": "ix overview runtime/cli.ts --format llm",
+    "exit": 0,
+    "ix": "5ce416c",
+    "capturedFrom": "throwaway backend (compose project ix-ocfix, memory-layer 1.0.30)"
+  },
+  "success/rank-empty-kind.json": {
+    "command": "ix rank --by dependents --kind class --top 10 --format json",
+    "exit": 0,
+    "ix": "5ce416c",
+    "capturedFrom": "throwaway backend (compose project ix-ocfix, memory-layer 1.0.30)"
+  },
+  "success/rank-empty-kind.txt": {
+    "command": "ix rank --by dependents --kind class --top 10 --format llm",
+    "exit": 0,
+    "ix": "5ce416c",
+    "capturedFrom": "throwaway backend (compose project ix-ocfix, memory-layer 1.0.30)"
+  },
+  "success/rank.json": {
+    "command": "ix rank --by dependents --kind function --top 10 --format json",
+    "exit": 0,
+    "ix": "5ce416c",
+    "capturedFrom": "throwaway backend (compose project ix-ocfix, memory-layer 1.0.30)"
+  },
+  "success/rank.txt": {
+    "command": "ix rank --by dependents --kind function --top 10 --format llm",
+    "exit": 0,
+    "ix": "5ce416c",
+    "capturedFrom": "throwaway backend (compose project ix-ocfix, memory-layer 1.0.30)"
+  },
+  "success/read.json": {
+    "command": "ix read safeRun --format json",
+    "exit": 0,
+    "ix": "5ce416c",
+    "capturedFrom": "throwaway backend (compose project ix-ocfix, memory-layer 1.0.30)"
+  },
+  "success/read.txt": {
+    "command": "ix read safeRun --format llm",
+    "exit": 0,
+    "ix": "5ce416c",
+    "capturedFrom": "throwaway backend (compose project ix-ocfix, memory-layer 1.0.30)"
+  },
+  "success/smells-list-before-run.json": {
+    "command": "ix smells --list --format json",
+    "exit": 0,
+    "ix": "5ce416c",
+    "capturedFrom": "throwaway backend (compose project ix-ocfix, memory-layer 1.0.30)"
+  },
+  "success/smells-list-before-run.txt": {
+    "command": "ix smells --list --format llm",
+    "exit": 0,
+    "ix": "5ce416c",
+    "capturedFrom": "throwaway backend (compose project ix-ocfix, memory-layer 1.0.30)"
+  },
+  "success/smells-list.json": {
+    "command": "ix smells --list --format json",
+    "exit": 0,
+    "ix": "5ce416c",
+    "capturedFrom": "throwaway backend (compose project ix-ocfix, memory-layer 1.0.30)"
+  },
+  "success/smells-list.txt": {
+    "command": "ix smells --list --format llm",
+    "exit": 0,
+    "ix": "5ce416c",
+    "capturedFrom": "throwaway backend (compose project ix-ocfix, memory-layer 1.0.30)"
+  },
+  "success/stats.json": {
+    "command": "ix stats --format json",
+    "exit": 0,
+    "ix": "5ce416c",
+    "capturedFrom": "throwaway backend (compose project ix-ocfix, memory-layer 1.0.30)"
+  },
+  "success/stats.txt": {
+    "command": "ix stats --format llm",
+    "exit": 0,
+    "ix": "5ce416c",
+    "capturedFrom": "throwaway backend (compose project ix-ocfix, memory-layer 1.0.30)"
+  },
+  "success/status-root.json": {
+    "command": "ix status --root . --format json",
+    "exit": 0,
+    "ix": "5ce416c",
+    "capturedFrom": "throwaway backend (compose project ix-ocfix, memory-layer 1.0.30)"
+  },
+  "success/status-root.txt": {
+    "command": "ix status --root . --format llm",
+    "exit": 0,
+    "ix": "5ce416c",
+    "capturedFrom": "throwaway backend (compose project ix-ocfix, memory-layer 1.0.30)"
+  },
+  "success/status.json": {
+    "command": "ix status --format json",
+    "exit": 0,
+    "ix": "5ce416c",
+    "capturedFrom": "throwaway backend (compose project ix-ocfix, memory-layer 1.0.30)"
+  },
+  "success/status.txt": {
+    "command": "ix status --format llm",
+    "exit": 0,
+    "ix": "5ce416c",
+    "capturedFrom": "throwaway backend (compose project ix-ocfix, memory-layer 1.0.30)"
+  },
+  "success/subsystems-list.json": {
+    "command": "ix subsystems --list --format json",
+    "exit": 0,
+    "ix": "5ce416c",
+    "capturedFrom": "throwaway backend (compose project ix-ocfix, memory-layer 1.0.30)"
+  },
+  "success/subsystems-list.txt": {
+    "command": "ix subsystems --list --format llm",
+    "exit": 0,
+    "ix": "5ce416c",
+    "capturedFrom": "throwaway backend (compose project ix-ocfix, memory-layer 1.0.30)"
+  },
+  "success/subsystems-scope.json": {
+    "command": "ix subsystems Runtime --format json",
+    "exit": 0,
+    "ix": "5ce416c",
+    "capturedFrom": "throwaway backend (compose project ix-ocfix, memory-layer 1.0.30)"
+  },
+  "success/subsystems-scope.txt": {
+    "command": "ix subsystems Runtime --format llm",
+    "exit": 0,
+    "ix": "5ce416c",
+    "capturedFrom": "throwaway backend (compose project ix-ocfix, memory-layer 1.0.30)"
+  },
+  "success/subsystems.json": {
+    "command": "ix subsystems --format json",
+    "exit": 0,
+    "ix": "5ce416c",
+    "capturedFrom": "throwaway backend (compose project ix-ocfix, memory-layer 1.0.30)"
+  },
+  "success/subsystems.txt": {
+    "command": "ix subsystems --format llm",
+    "exit": 0,
+    "ix": "5ce416c",
+    "capturedFrom": "throwaway backend (compose project ix-ocfix, memory-layer 1.0.30)"
+  },
+  "success/text.json": {
+    "command": "ix text runIx --limit 5 --format json",
+    "exit": 0,
+    "ix": "5ce416c",
+    "capturedFrom": "throwaway backend (compose project ix-ocfix, memory-layer 1.0.30)"
+  },
+  "success/text.txt": {
+    "command": "ix text runIx --limit 5 --format llm",
+    "exit": 0,
+    "ix": "5ce416c",
+    "capturedFrom": "throwaway backend (compose project ix-ocfix, memory-layer 1.0.30)"
+  },
+  "success/trace-to.json": {
+    "command": "ix trace safeRun --to runIx --format json",
+    "exit": 0,
+    "ix": "5ce416c",
+    "capturedFrom": "throwaway backend (compose project ix-ocfix, memory-layer 1.0.30)"
+  },
+  "success/trace-to.txt": {
+    "command": "ix trace safeRun --to runIx --format llm",
+    "exit": 0,
+    "ix": "5ce416c",
+    "capturedFrom": "throwaway backend (compose project ix-ocfix, memory-layer 1.0.30)"
+  },
+  "success/trace.json": {
+    "command": "ix trace safeRun --format json",
+    "exit": 0,
+    "ix": "5ce416c",
+    "capturedFrom": "throwaway backend (compose project ix-ocfix, memory-layer 1.0.30)"
+  },
+  "success/trace.txt": {
+    "command": "ix trace safeRun --format llm",
+    "exit": 0,
+    "ix": "5ce416c",
+    "capturedFrom": "throwaway backend (compose project ix-ocfix, memory-layer 1.0.30)"
+  },
+  "empty-repo/smells-list.json": {
+    "command": "ix smells --list --format json",
+    "exit": 0,
+    "ix": "5ce416c",
+    "capturedFrom": "throwaway backend (compose project ix-ocfix, memory-layer 1.0.30)"
+  },
+  "empty-repo/smells-list.txt": {
+    "command": "ix smells --list --format llm",
+    "exit": 0,
+    "ix": "5ce416c",
+    "capturedFrom": "throwaway backend (compose project ix-ocfix, memory-layer 1.0.30)"
+  },
+  "empty-repo/stats.json": {
+    "command": "ix stats --format json",
+    "exit": 0,
+    "ix": "5ce416c",
+    "capturedFrom": "throwaway backend (compose project ix-ocfix, memory-layer 1.0.30)"
+  },
+  "empty-repo/stats.txt": {
+    "command": "ix stats --format llm",
+    "exit": 0,
+    "ix": "5ce416c",
+    "capturedFrom": "throwaway backend (compose project ix-ocfix, memory-layer 1.0.30)"
+  },
+  "empty-repo/status.json": {
+    "command": "ix status --format json",
+    "exit": 0,
+    "ix": "5ce416c",
+    "capturedFrom": "throwaway backend (compose project ix-ocfix, memory-layer 1.0.30)"
+  },
+  "empty-repo/status.txt": {
+    "command": "ix status --format llm",
+    "exit": 0,
+    "ix": "5ce416c",
+    "capturedFrom": "throwaway backend (compose project ix-ocfix, memory-layer 1.0.30)"
+  },
+  "empty-repo/subsystems-list.json": {
+    "command": "ix subsystems --list --format json",
+    "exit": 0,
+    "ix": "5ce416c",
+    "capturedFrom": "throwaway backend (compose project ix-ocfix, memory-layer 1.0.30)"
+  },
+  "empty-repo/subsystems-list.txt": {
+    "command": "ix subsystems --list --format llm",
+    "exit": 0,
+    "ix": "5ce416c",
+    "capturedFrom": "throwaway backend (compose project ix-ocfix, memory-layer 1.0.30)"
+  },
+  "empty-repo/subsystems.json": {
+    "command": "ix subsystems --format json",
+    "exit": 0,
+    "ix": "5ce416c",
+    "capturedFrom": "throwaway backend (compose project ix-ocfix, memory-layer 1.0.30)"
+  },
+  "empty-repo/subsystems.txt": {
+    "command": "ix subsystems --format llm",
+    "exit": 0,
+    "ix": "5ce416c",
+    "capturedFrom": "throwaway backend (compose project ix-ocfix, memory-layer 1.0.30)"
+  },
+  "empty-graph/status.json": {
+    "command": "ix status --format json",
+    "exit": 0,
+    "ix": "5ce416c",
+    "capturedFrom": "throwaway backend (compose project ix-ocfix, memory-layer 1.0.30)"
+  },
+  "empty-graph/status.txt": {
+    "command": "ix status --format llm",
+    "exit": 0,
+    "ix": "5ce416c",
+    "capturedFrom": "throwaway backend (compose project ix-ocfix, memory-layer 1.0.30)"
   }
 }

@@ -1,0 +1,3 @@
+trace mode=path from=safeRun to=runIx kind=mixed length=2
+step name=safeRun kind=function
+step name=runIx kind=function

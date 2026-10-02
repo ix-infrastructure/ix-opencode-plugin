@@ -1,6 +1,7 @@
 # Ix v0.12.0 output fixtures
 
-Captured stdout of the real `ix` CLI, used by `tests/ix-errors.test.ts`.
+Captured stdout of the real `ix` CLI, used by `tests/ix-errors.test.ts`,
+`tests/success-fixtures.test.ts` and `tests/secrets.test.ts`.
 
 **Source:** Ix `main` at `5ce416c` (v0.12.0 is `8d16f2a`; the one commit on
 top only touches `ix mcp`), built `ix-cli/dist`, run with
@@ -21,10 +22,8 @@ or `error code=workspace_not_mapped ... hint="..."` (llm), exit 1. Commands:
 impact, callers, trace, explain, locate, `smells --list`, stats, subsystems,
 rank, inventory.
 
-`smells-list.*` is `ix smells --list`. The plugin's ix-smells tool runs
-`ix smells` without `--list`, which writes smell claims and so was not run;
-both reject an unmapped directory in the same place (`resolveReadSystemId`,
-before the `--list` branch), so the record is the one `ix smells` prints.
+`smells-list.*` is `ix smells --list`, the only form the ix-smells tool runs
+(bare `ix smells` re-runs detection and writes smell claims).
 
 ## `empty-graph/` (real)
 
@@ -36,12 +35,40 @@ exit 1. `impact-file.*` is a file target (`reason: file_not_found`).
 
 Not error records, kept to pin that down: `locate.json`
 (`{"resolvedTarget":null,...}`), `smells-list.*` and `stats.*` (exit 0, zero
-counts).
+counts). `status.*` was added later from the throwaway backend below, for the
+same situation (a workspace registered in `IX_HOME` with no graph):
+`graphCompleted: false`, `currentRev: 0`.
+
+## `success/` and `empty-repo/` (real, from a throwaway backend)
+
+Every success shape the tools parse. Captured 2026-10-01 with the same CLI
+build (Ix `5ce416c`, `node ix-cli/dist/cli/main.js`, reporting 0.11.1) against
+a private backend started for the purpose -- `docker-compose.standalone.yml`
+under compose project `ix-ocfix`, memory-layer image release 1.0.30 on
+127.0.0.1:8094, a fresh `IX_HOME` -- and torn down (`down -v`) afterwards.
+Nothing was written to a shared backend.
+
+- `success/`: a `git clone --depth 1` of this repository (commit `3dbd4d4`)
+  mapped with `ix map`, then every read the plugin makes: impact (function,
+  file, leaf), callers, callees, depends, imported-by, locate (resolved and
+  ambiguous), explain (function, file), trace (directional and `--to`), rank
+  (and a kind with no entities), stats, subsystems (all, scoped, `--list`),
+  inventory, status, text, read, history, overview, `map --format json|llm`.
+  `smells-list-before-run.*` is `ix smells --list` straight after the map (no
+  claims stored yet); `smells-list.*` is the same after one `ix smells` run on
+  that private backend (31 claims; `--list` names entities by id only).
+- `empty-repo/`: an empty git repo (one empty commit) mapped with `ix map`:
+  zero nodes, `graphCompleted: false`, no claims.
+
+`manifest.json` records each file's command and exit code; entries from this
+capture also carry `"ix": "5ce416c"`. `.json` is `--format json`, `.txt` is
+`--format llm`.
 
 ## `synthetic/` (hand-written)
 
-Successful `ix impact --format json` records. None could be captured without
-mapping a project (a write), so these are built from the shape in
+Successful `ix impact --format json` records, written before `success/`
+existed and kept for the risk levels and the hollow-graph case it does not
+cover (`success/impact-*` are real medium/high/low records). Built from the shape in
 `ix-cli/src/cli/commands/impact.ts` (`containerImpact` / `leafImpact`) and
 `ix-cli/src/cli/graph-health.ts`: `riskLevel`, `riskSummary`, `riskCategory`,
 `summary.{members,directImporters,directDependents,memberLevelCallers}` for a

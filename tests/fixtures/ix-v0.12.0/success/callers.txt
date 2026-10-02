@@ -1,0 +1,12 @@
+callers target=runIx shown=11 total=11 resolved=11
+ref name=execute kind=function path=tools/ix-rank.ts lines=55-118 site=tools/ix-rank.ts:78 snippet="const run = await runIx($`${args}`.cwd(dir));"
+ref name=execute kind=function path=tools/ix-inventory.ts lines=42-101 site=tools/ix-inventory.ts:49 snippet="const run = await runIx($`ix inventory --kind ${kind} --path ${params.path} --format json`.cwd(dir));"
+ref name=execute kind=function path=tools/ix-locate.ts lines=55-114 site=tools/ix-locate.ts:69 snippet="const run = await runIx($`${args}`.cwd(dir));"
+ref name=execute kind=function path=tools/ix-subsystems.ts lines=28-94 site=tools/ix-subsystems.ts:34 snippet="const run = await runIx($`ix subsystems --format json`.cwd(dir));"
+ref name=execute kind=function path=tools/ix-impact.ts lines=38-117 site=tools/ix-impact.ts:50 snippet="const run = await runIx($`ix impact ${params.target} --format json`.cwd(dir));"
+ref name=execute kind=function path=tools/ix-stats.ts lines=28-98 site=tools/ix-stats.ts:43 snippet="const run = await runIx($`ix stats --format json`.cwd(dir));"
+ref name=execute kind=function path=tools/ix-trace.ts lines=45-110 site=tools/ix-trace.ts:56 snippet="const run = await runIx($`${args}`.cwd(dir));"
+ref name=execute kind=function path=tools/ix-query.ts lines=50-117 site=tools/ix-query.ts:70 also=94 snippet="const locateRun = await runIx($`${locateArgs}`.cwd(dir));"
+ref name=execute kind=function path=tools/ix-explain.ts lines=33-125 site=tools/ix-explain.ts:42 snippet="const run = await runIx($`ix explain ${params.symbol} --format json`.cwd(dir));"
+ref name=safeRun kind=function path=runtime/cli.ts lines=56-60 site=runtime/cli.ts:57 snippet="const run = await runIx(cmd);"
+ref name=execute kind=function path=tools/ix-smells.ts lines=42-123 site=tools/ix-smells.ts:54 snippet="const run = await runIx($`${args}`.cwd(dir));"

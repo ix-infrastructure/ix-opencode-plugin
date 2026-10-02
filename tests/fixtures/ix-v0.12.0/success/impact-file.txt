@@ -1,0 +1,12 @@
+impact target=cli.ts kind=file risk=high category=shared system_path=Tools,Impact summary="High risk — widely shared dependency affecting the tools layer and impact analysis layer."
+behavior text="Multiple callers across different subsystems"
+behavior text="Cross-module behavior consistency"
+counts members=4 importers=18 dependents=0 member_callers=33
+bucket region="runtime layer" kind=region count=6
+bucket region="explanation layer" kind=region count=6
+bucket region="impact analysis layer" kind=region count=4
+bucket region="plugins layer" kind=region count=2
+member name=safeRun kind=function callers=12 path=runtime/cli.ts lines=56-60
+member name=runIx kind=function callers=11 path=runtime/cli.ts lines=37-48
+member name=failureDetail kind=function callers=10 path=runtime/cli.ts lines=68-73
+next text="Understand its system role: ix explain cli.ts"

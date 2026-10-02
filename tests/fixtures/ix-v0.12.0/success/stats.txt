@@ -1,0 +1,2 @@
+nodes total=870 heading=202 section=202 config_entry=131 module=104 function=98 constant=67 file=55 frontmatter=8 interface=2 method=1
+edges total=1745 CALLS=555 DEFINES=539 CONTAINS=509 IMPORTS=104 REFERENCES=38

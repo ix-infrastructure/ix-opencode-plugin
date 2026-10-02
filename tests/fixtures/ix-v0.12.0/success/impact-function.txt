@@ -1,0 +1,15 @@
+impact target=runIx kind=function risk=medium category=shared summary="Medium risk — widely shared dependency affecting dependent subsystems."
+behavior text="Multiple callers across different subsystems"
+behavior text="Cross-module behavior consistency"
+counts callers=11 callees=0
+caller name=execute kind=function
+caller name=execute kind=function
+caller name=execute kind=function
+caller name=execute kind=function
+caller name=execute kind=function
+caller name=execute kind=function
+caller name=execute kind=function
+caller name=execute kind=function
+caller name=execute kind=function
+caller name=safeRun kind=function
+caller name=execute kind=function

@@ -1,0 +1,6 @@
+overview target=cli.ts kind=file file=runtime/cli.ts system_path=Tools,Impact
+contains function=3 interface=1
+item name=IxRun kind=interface
+item name=safeRun kind=function
+item name=runIx kind=function
+item name=failureDetail kind=function

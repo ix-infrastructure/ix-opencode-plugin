@@ -1,0 +1,1 @@
+{"targetType":"symbol","path":"runtime/cli.ts","lineStart":56,"lineEnd":60,"content":"export async function safeRun(cmd: ReturnType<typeof $>): Promise<string | null> {\n  const run = await runIx(cmd);\n  if (!run) return null;\n  return run.stdout.trim() ? run.stdout : null;\n}","symbol":"safeRun","kind":"function"}

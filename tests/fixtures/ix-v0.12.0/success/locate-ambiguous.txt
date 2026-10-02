@@ -1,0 +1,11 @@
+error code=ambiguous_target message="Ambiguous symbol \"execute\"." count=8
+candidate n=1 name=execute kind=function path=tools/ix-rank.ts id=02fb6ae7
+candidate n=2 name=execute kind=function path=tools/ix-inventory.ts id=18bdd883
+candidate n=3 name=execute kind=function path=tools/ix-ingest.ts id=20f9a9b7
+candidate n=4 name=execute kind=function path=tools/ix-decide.ts id=23e75eca
+candidate n=5 name=execute kind=function path=tools/ix-locate.ts id=245e8d55
+candidate n=6 name=execute kind=function path=tools/ix-subsystems.ts id=27fabf7a
+candidate n=7 name=execute kind=function path=tools/ix-impact.ts id=52e97f14
+candidate n=8 name=execute kind=function path=tools/ix-stats.ts id=6e731b52
+hint text="Use --pick <n> or --kind or --path to disambiguate."
+diagnostic code=ambiguous_resolution message="Use --pick <n> or --path to disambiguate."

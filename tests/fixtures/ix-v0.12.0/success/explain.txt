@@ -1,0 +1,6 @@
+entity id=ee807471 name=runIx kind=function path=runtime/cli.ts rev=1
+role role=shared-utility confidence=medium
+importance level=high category=broad-shared-dependency
+edges callers=11 callees=0 dependents=11 importers=0 members=0 downstream=38 depth=4 history=1
+container kind=file name=cli.ts
+uses name=execute rel=caller,caller,caller,dependent,dependent,dependent path=tools/ix-rank.ts lines=55-118
