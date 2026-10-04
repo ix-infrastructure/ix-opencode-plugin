@@ -58,6 +58,7 @@ const CALLS: [string, string, Record<string, unknown>][] = [
   ["ix-subsystems.ts", "ix-subsystems.ts", {}],
   ["ix-inventory.ts", "ix-inventory.ts", { path: "src", kind: "file" }],
   ["ix-trace.ts", "ix-trace.ts", { symbol: "Foo" }],
+  ["ix-trace.ts to", "ix-trace.ts", { symbol: "Foo", to: "Bar" }],
   ["ix-decide.ts", "ix-decide.ts", { touched_paths: ["probe.ts"] }],
   ["ix-health.ts", "ix-health.ts", {}],
   ["ix-smells.ts", "ix-smells.ts", {}],
@@ -80,6 +81,7 @@ const GRAPH_READS = [
   "ix-subsystems.ts",
   "ix-inventory.ts",
   "ix-trace.ts",
+  "ix-trace.ts to",
   "ix-smells.ts",
 ];
 
