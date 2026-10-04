@@ -1,0 +1,3 @@
+text shown=2 scanned=2
+match path=src/main.ts line=1 snippet="export function greet(name: string): string {"
+match path=src/main.ts line=5 snippet="console.log(greet(\"world\"));"

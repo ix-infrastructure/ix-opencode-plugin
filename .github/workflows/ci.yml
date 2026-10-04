@@ -55,6 +55,80 @@ jobs:
       - name: Test
         run: bun test
 
+  # ── Real ix ──────────────────────────────────────────────────────────────
+  # The `test` job only ever meets a fake `ix` (tests/fake-ix.ts), which refuses
+  # just the flags someone taught it to. This job installs a released CLI --
+  # pinned, checksummed -- and runs the tools against it with no backend:
+  # IX_ENDPOINT is a port nothing answers on and IX_HOME is empty, so graph
+  # reads return ix's real `workspace_not_mapped` record and `ix text`,
+  # `ix --version` and the argv parser are fully real. tests/real-ix.test.ts
+  # fails if ix rejects any argv a tool builds (unknown option/command), so a
+  # pin to a CLI that lacks a flag the plugin uses turns this job red.
+  #
+  # It also regenerates the fixtures that need no backend
+  # (tests/fixtures/regen-no-backend.ts) and fails if they differ from the
+  # committed ones. Fixtures that need a populated graph stay hand-captured;
+  # see tests/fixtures/ix-v0.12.0/README.md.
+  real-ix:
+    name: Real ix (v0.12.0, no backend)
+    runs-on: ubuntu-latest
+    env:
+      IX_VERSION: "0.12.0"
+      IX_ENDPOINT: "http://127.0.0.1:1"
+      IX_NO_UPDATE_CHECK: "1"
+    steps:
+      - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # The ix launcher is a Node script and needs Node 22+.
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "22"
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: "1.4.2"
+      # `ix text` shells out to ripgrep.
+      - name: Install ripgrep
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ripgrep
+          rg --version
+      - name: Install ix ${{ env.IX_VERSION }}
+        run: |
+          set -euo pipefail
+          tarball="ix-${IX_VERSION}-linux-amd64.tar.gz"
+          base="https://github.com/ix-infrastructure/Ix/releases/download/v${IX_VERSION}"
+          dl="$RUNNER_TEMP/ix-dl"
+          mkdir -p "$dl" "$RUNNER_TEMP/ix"
+          curl -fsSL -o "$dl/$tarball" "$base/$tarball"
+          curl -fsSL -o "$dl/$tarball.sha256" "$base/$tarball.sha256"
+          (cd "$dl" && sha256sum -c "$tarball.sha256")
+          tar -xzf "$dl/$tarball" --strip-components=1 -C "$RUNNER_TEMP/ix"
+          echo "$RUNNER_TEMP/ix" >> "$GITHUB_PATH"
+          echo "IX_HOME=$RUNNER_TEMP/ix-home" >> "$GITHUB_ENV"
+      - name: ix --version
+        run: |
+          set -euo pipefail
+          got="$(ix --version)"
+          echo "ix --version: $got"
+          [ "$got" = "$IX_VERSION" ]
+      - name: Install
+        run: bun install --frozen-lockfile
+      - name: Tools against the real ix
+        env:
+          IX_REAL_TESTS: "1"
+        run: bun test tests/real-ix.test.ts
+      - name: Regenerate no-backend fixtures
+        run: bun tests/fixtures/regen-no-backend.ts
+      - name: Committed fixtures match the real ix
+        run: |
+          git status --porcelain -- tests/fixtures
+          git diff --exit-code -- tests/fixtures
+          [ -z "$(git status --porcelain -- tests/fixtures)" ]
+
   # ── Aggregate gate ───────────────────────────────────────────────────────
   # One stable required-status-check context. Branch protection requires only
   # this job, so the job graph can be reshaped without orphaning required
@@ -62,10 +136,12 @@ jobs:
   ci-success:
     name: CI Passed
     if: always()
-    needs: [test]
+    needs: [test, real-ix]
     runs-on: ubuntu-latest
     steps:
       - name: Verify all required jobs succeeded
         run: |
           echo "test=${{ needs.test.result }}"
+          echo "real-ix=${{ needs.real-ix.result }}"
           [ "${{ needs.test.result }}" = "success" ]
+          [ "${{ needs.real-ix.result }}" = "success" ]

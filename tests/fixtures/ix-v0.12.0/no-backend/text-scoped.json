@@ -1,0 +1,1 @@
+[{"path":"src/main.ts","line_start":1,"line_end":1,"snippet":"export function greet(name: string): string {\n","engine":"ripgrep","score":1,"language":"typescript"},{"path":"src/main.ts","line_start":5,"line_end":5,"snippet":"console.log(greet(\"world\"));\n","engine":"ripgrep","score":1,"language":"typescript"}]
