@@ -1,9 +1,9 @@
 # Ix v0.12.0 output fixtures
 
-Captured stdout of the real `ix` CLI, used by `tests/ix-errors.test.ts`,
+Stdout of the real `ix` CLI, used by `tests/ix-errors.test.ts`,
 `tests/success-fixtures.test.ts` and `tests/secrets.test.ts`.
 
-**Source:** Ix `main` at `5ce416c` (v0.12.0 is `8d16f2a`; the one commit on
+**Source of the hand-captured files:** Ix `main` at `5ce416c` (v0.12.0 is `8d16f2a`; the one commit on
 top only touches `ix mcp`), built `ix-cli/dist`, run with
 `node ix-cli/dist/cli/main.js`. That checkout's `package.json` still says
 0.11.1, so `--version` printed 0.11.1; the behaviour is v0.12.0's, including
@@ -13,10 +13,28 @@ backend on :8090. Only read commands were run.
 `manifest.json` maps every captured file to the exact command and its exit code.
 `.json` files are `--format json`, `.txt` files are `--format llm`.
 
-## `unmapped/` (real)
+## Generated vs hand-captured
 
-Run from a fresh `mktemp -d` directory with no Ix config, so no registered
-workspace covers it. Every graph read answers
+Two kinds of file live here:
+
+- **Generated** by `tests/fixtures/regen-no-backend.ts` from the released
+  v0.12.0 CLI with no backend: `unmapped/` and `no-backend/`. Their manifest
+  entries carry `"generatedBy"`. CI's `real-ix` job installs the v0.12.0
+  release tarball, reruns the script and fails if `git diff` shows any change,
+  so do not edit these by hand -- rerun the script
+  (`bun tests/fixtures/regen-no-backend.ts`, real `ix` 0.12.0 first on PATH).
+- **Hand-captured** (or hand-written): `empty-graph/`, `success/`,
+  `empty-repo/` and `synthetic/`. Each needs a backend holding a graph (or a
+  registered workspace the backend answers for), which CI does not have, so
+  the script cannot produce them and leaves them alone. They are described
+  below as they were captured.
+
+## `unmapped/` (generated)
+
+Run from a fixed directory (`/tmp/ix-fixtures-v0.12.0/unmapped`) with a fresh
+`IX_HOME`, so no registered workspace covers it, and `IX_ENDPOINT` pointing at
+a port nothing answers on. Ix decides "not mapped" from `IX_HOME` alone,
+before any network call. Every graph read answers
 `{"error":"workspace_not_mapped",...,"next":"Run \`ix map <dir>\` ..."}` (JSON)
 or `error code=workspace_not_mapped ... hint="..."` (llm), exit 1. Commands:
 impact, callers, trace, explain, locate, `smells --list`, stats, subsystems,
@@ -24,6 +42,24 @@ rank, inventory.
 
 `smells-list.*` is `ix smells --list`, the only form the ix-smells tool runs
 (bare `ix smells` re-runs detection and writes smell claims).
+
+These were first captured by hand from a `mktemp -d` directory; the only
+change on regeneration was that directory name.
+
+## `no-backend/` (generated)
+
+- `version.*`: `ix --version`. It ignores `--format json` and prints plain
+  `0.12.0` either way.
+- `status.*`: `ix status` with the backend unreachable, exit 1. `--format llm`
+  prints `error code=cli_error message="fetch failed (bad port)"`;
+  `--format json` prints **nothing on stdout** (the error goes to stderr only),
+  so `status.json` is empty on purpose. "bad port" is because the endpoint is
+  port 1, which fetch refuses without connecting.
+- `text*.*`: `ix text` (ripgrep, no graph needed) on a two-file repo the
+  script writes: hits, a `--path`/`--language` scoped search, and no hits.
+  All hits are in one file because `ix text` scores every ripgrep hit the same
+  and keeps ripgrep's unstable cross-file order, so a multi-file result is not
+  reproducible run to run.
 
 ## `empty-graph/` (real)
 

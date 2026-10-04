@@ -1,83 +1,123 @@
 {
   "unmapped/impact.json": {
     "command": "ix impact Foo --format json",
-    "exit": 1
+    "exit": 1,
+    "ix": "0.12.0",
+    "generatedBy": "tests/fixtures/regen-no-backend.ts"
   },
   "unmapped/impact.txt": {
     "command": "ix impact Foo --format llm",
-    "exit": 1
+    "exit": 1,
+    "ix": "0.12.0",
+    "generatedBy": "tests/fixtures/regen-no-backend.ts"
   },
   "unmapped/callers.json": {
     "command": "ix callers Foo --format json",
-    "exit": 1
+    "exit": 1,
+    "ix": "0.12.0",
+    "generatedBy": "tests/fixtures/regen-no-backend.ts"
   },
   "unmapped/callers.txt": {
     "command": "ix callers Foo --format llm",
-    "exit": 1
+    "exit": 1,
+    "ix": "0.12.0",
+    "generatedBy": "tests/fixtures/regen-no-backend.ts"
   },
   "unmapped/trace.json": {
     "command": "ix trace Foo --format json",
-    "exit": 1
+    "exit": 1,
+    "ix": "0.12.0",
+    "generatedBy": "tests/fixtures/regen-no-backend.ts"
   },
   "unmapped/trace.txt": {
     "command": "ix trace Foo --format llm",
-    "exit": 1
+    "exit": 1,
+    "ix": "0.12.0",
+    "generatedBy": "tests/fixtures/regen-no-backend.ts"
   },
   "unmapped/explain.json": {
     "command": "ix explain Foo --format json",
-    "exit": 1
+    "exit": 1,
+    "ix": "0.12.0",
+    "generatedBy": "tests/fixtures/regen-no-backend.ts"
   },
   "unmapped/explain.txt": {
     "command": "ix explain Foo --format llm",
-    "exit": 1
+    "exit": 1,
+    "ix": "0.12.0",
+    "generatedBy": "tests/fixtures/regen-no-backend.ts"
   },
   "unmapped/locate.json": {
     "command": "ix locate Foo --format json",
-    "exit": 1
+    "exit": 1,
+    "ix": "0.12.0",
+    "generatedBy": "tests/fixtures/regen-no-backend.ts"
   },
   "unmapped/locate.txt": {
     "command": "ix locate Foo --format llm",
-    "exit": 1
+    "exit": 1,
+    "ix": "0.12.0",
+    "generatedBy": "tests/fixtures/regen-no-backend.ts"
   },
   "unmapped/smells-list.json": {
     "command": "ix smells --list --format json",
-    "exit": 1
+    "exit": 1,
+    "ix": "0.12.0",
+    "generatedBy": "tests/fixtures/regen-no-backend.ts"
   },
   "unmapped/smells-list.txt": {
     "command": "ix smells --list --format llm",
-    "exit": 1
+    "exit": 1,
+    "ix": "0.12.0",
+    "generatedBy": "tests/fixtures/regen-no-backend.ts"
   },
   "unmapped/stats.json": {
     "command": "ix stats --format json",
-    "exit": 1
+    "exit": 1,
+    "ix": "0.12.0",
+    "generatedBy": "tests/fixtures/regen-no-backend.ts"
   },
   "unmapped/stats.txt": {
     "command": "ix stats --format llm",
-    "exit": 1
+    "exit": 1,
+    "ix": "0.12.0",
+    "generatedBy": "tests/fixtures/regen-no-backend.ts"
   },
   "unmapped/subsystems.json": {
     "command": "ix subsystems --format json",
-    "exit": 1
+    "exit": 1,
+    "ix": "0.12.0",
+    "generatedBy": "tests/fixtures/regen-no-backend.ts"
   },
   "unmapped/subsystems.txt": {
     "command": "ix subsystems --format llm",
-    "exit": 1
+    "exit": 1,
+    "ix": "0.12.0",
+    "generatedBy": "tests/fixtures/regen-no-backend.ts"
   },
   "unmapped/rank.json": {
     "command": "ix rank --by dependents --kind class --top 5 --format json",
-    "exit": 1
+    "exit": 1,
+    "ix": "0.12.0",
+    "generatedBy": "tests/fixtures/regen-no-backend.ts"
   },
   "unmapped/rank.txt": {
     "command": "ix rank --by dependents --kind class --top 5 --format llm",
-    "exit": 1
+    "exit": 1,
+    "ix": "0.12.0",
+    "generatedBy": "tests/fixtures/regen-no-backend.ts"
   },
   "unmapped/inventory.json": {
     "command": "ix inventory --kind file --path src/ --format json",
-    "exit": 1
+    "exit": 1,
+    "ix": "0.12.0",
+    "generatedBy": "tests/fixtures/regen-no-backend.ts"
   },
   "unmapped/inventory.txt": {
     "command": "ix inventory --kind file --path src/ --format llm",
-    "exit": 1
+    "exit": 1,
+    "ix": "0.12.0",
+    "generatedBy": "tests/fixtures/regen-no-backend.ts"
   },
   "empty-graph/impact.json": {
     "command": "ix impact Foo --format json",
@@ -586,5 +626,68 @@
     "exit": 0,
     "ix": "5ce416c",
     "capturedFrom": "throwaway backend (compose project ix-ocfix, memory-layer 1.0.30)"
+  },
+  "no-backend/version.txt": {
+    "command": "ix --version",
+    "exit": 0,
+    "ix": "0.12.0",
+    "generatedBy": "tests/fixtures/regen-no-backend.ts"
+  },
+  "no-backend/version.json": {
+    "command": "ix --version --format json",
+    "exit": 0,
+    "ix": "0.12.0",
+    "generatedBy": "tests/fixtures/regen-no-backend.ts",
+    "note": "--version ignores --format: plain text, not JSON"
+  },
+  "no-backend/status.json": {
+    "command": "ix status --format json",
+    "exit": 1,
+    "ix": "0.12.0",
+    "generatedBy": "tests/fixtures/regen-no-backend.ts",
+    "note": "backend unreachable; --format json prints nothing on stdout (the error goes to stderr), llm prints an error record"
+  },
+  "no-backend/status.txt": {
+    "command": "ix status --format llm",
+    "exit": 1,
+    "ix": "0.12.0",
+    "generatedBy": "tests/fixtures/regen-no-backend.ts",
+    "note": "backend unreachable; --format json prints nothing on stdout (the error goes to stderr), llm prints an error record"
+  },
+  "no-backend/text.json": {
+    "command": "ix text greet --limit 5 --format json",
+    "exit": 0,
+    "ix": "0.12.0",
+    "generatedBy": "tests/fixtures/regen-no-backend.ts"
+  },
+  "no-backend/text.txt": {
+    "command": "ix text greet --limit 5 --format llm",
+    "exit": 0,
+    "ix": "0.12.0",
+    "generatedBy": "tests/fixtures/regen-no-backend.ts"
+  },
+  "no-backend/text-scoped.json": {
+    "command": "ix text greet --limit 5 --path src --language typescript --format json",
+    "exit": 0,
+    "ix": "0.12.0",
+    "generatedBy": "tests/fixtures/regen-no-backend.ts"
+  },
+  "no-backend/text-scoped.txt": {
+    "command": "ix text greet --limit 5 --path src --language typescript --format llm",
+    "exit": 0,
+    "ix": "0.12.0",
+    "generatedBy": "tests/fixtures/regen-no-backend.ts"
+  },
+  "no-backend/text-none.json": {
+    "command": "ix text noSuchIdentifierAnywhere --limit 5 --format json",
+    "exit": 0,
+    "ix": "0.12.0",
+    "generatedBy": "tests/fixtures/regen-no-backend.ts"
+  },
+  "no-backend/text-none.txt": {
+    "command": "ix text noSuchIdentifierAnywhere --limit 5 --format llm",
+    "exit": 0,
+    "ix": "0.12.0",
+    "generatedBy": "tests/fixtures/regen-no-backend.ts"
   }
 }
