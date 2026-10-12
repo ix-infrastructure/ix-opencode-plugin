@@ -49,18 +49,31 @@ type Context = { directory: string; worktree?: string };
 
 export async function execute(params: Params, context: Context): Promise<string> {
   const dir = toolCwd(context);
-  const limit = Math.min(params.limit ?? 50, 200);
+  const requested = requestedLimit(params.limit);
+  const limit = requested ?? 50;
+  // Forwarded only when the caller set one, so a call without `limit` sends
+  // exactly what it always did. Only the llm fast path gets it: an ix without
+  // `--limit` (before Ix#828) rejects the flag, that call comes back null, and
+  // the JSON path below answers instead. The JSON path never sends it -- plain
+  // `--format json` is uncapped on every version -- and cuts client-side.
+  const limitArgs = requested === undefined ? [] : ["--limit", String(requested)];
 
-  if (params.detect) return await detect(dir, limit, false);
+  if (params.detect) return await detect(dir, limit, limitArgs, false);
 
-  const stored = await listStored(dir, limit);
+  const stored = await listStored(dir, limit, limitArgs);
   if (stored !== null) return stored;
 
   // Nothing stored. Zero claims is not "clean" on its own: an unmapped or
   // empty graph has none either. Only a mapped graph gets a detection run.
   const health = await graphHealth(dir);
   if (health.state !== "mapped") return notMapped(health);
-  return await detect(dir, limit, true);
+  return await detect(dir, limit, limitArgs, true);
+}
+
+/** The caller's `limit` as a whole number in 1..200, or undefined if none was usable. */
+function requestedLimit(raw: unknown): number | undefined {
+  if (typeof raw !== "number" || !Number.isFinite(raw) || raw < 1) return undefined;
+  return Math.min(Math.floor(raw), 200);
 }
 
 /**
@@ -68,8 +81,8 @@ export async function execute(params: Params, context: Context): Promise<string>
  * null when none are stored. Error records and an unusable ix are answers in
  * their own right and are returned as text.
  */
-async function listStored(dir: string, limit: number): Promise<string | null> {
-  const fast = await tryLlm(["smells", "--list"], dir);
+async function listStored(dir: string, limit: number, limitArgs: string[]): Promise<string | null> {
+  const fast = await tryLlm(["smells", "--list", ...limitArgs], dir);
   if (fast) {
     const header = parseLlmRecord(fast.split("\n")[0]!);
     const count = header.kind === "smells" ? Number(header.fields["count"]) : NaN;
@@ -127,12 +140,12 @@ async function listStored(dir: string, limit: number): Promise<string | null> {
  * only this one), which is what makes the next `--list` answer. `auto` says
  * whether the tool chose to run it because nothing was stored.
  */
-async function detect(dir: string, limit: number, auto: boolean): Promise<string> {
+async function detect(dir: string, limit: number, limitArgs: string[], auto: boolean): Promise<string> {
   const why = auto
     ? "_No smell claims were stored, so this ran `ix smells` detection on the mapped graph; the results are now stored for this workspace._"
     : "_Fresh `ix smells` detection run; the results are stored for this workspace._";
 
-  const fast = await tryLlm(["smells"], dir);
+  const fast = await tryLlm(["smells", ...limitArgs], dir);
   if (fast) {
     const header = parseLlmRecord(fast.split("\n")[0]!);
     const count = header.kind === "smells" ? Number(header.fields["count"]) : NaN;
@@ -185,10 +198,23 @@ function clean(why: string): string {
   return ["## ix-smells", "", "**No smells detected** on the mapped graph.", "", why].join("\n");
 }
 
+/**
+ * Keep the first `limit` `smell` records. The header and any other record (an
+ * ix with `--limit` puts a `diagnostic code=results_truncated` line after the
+ * header) are kept and not counted, so they never push a smell out.
+ */
 function clip(records: string, limit: number): string {
-  const lines = records.split("\n");
-  const shown = lines.slice(0, limit + 1).join("\n");
-  const more = lines.length - 1 - limit;
+  const kept: string[] = [];
+  let rows = 0;
+  let more = 0;
+  for (const [i, line] of records.split("\n").entries()) {
+    if (i === 0 || !/^smell\s/.test(line)) kept.push(line);
+    else if (rows < limit) {
+      kept.push(line);
+      rows++;
+    } else more++;
+  }
+  const shown = kept.join("\n");
   return more > 0 ? `${shown}\n_...and ${more} more (raise \`limit\`)_` : shown;
 }
 

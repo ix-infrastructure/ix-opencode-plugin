@@ -11,6 +11,9 @@
  *   ix map <non-directory>   -> exit 1 "Map path is not a directory"
  *   ix locate ... --limit    -> exit 1 "unknown option '--limit'"
  *   ix smells ... --path     -> exit 1 "unknown option '--path'"
+ *   ix smells ... --limit    -> exit 1 "unknown option '--limit'", as every
+ *                               released ix does; IX_FAKE_SMELLS_LIMIT=1 makes
+ *                               the fake accept it, like an ix with Ix#828
  *
  * When IX_FAKE_LOG is set, every invocation appends one line to it:
  * `<cwd>|<IX_AUTO_MAP>|<argv...>`.
@@ -44,6 +47,7 @@ case "\${1:-}" in
   smells)
     for _a in "$@"; do
       if [ "$_a" = "--path" ]; then echo "error: unknown option '--path'" >&2; exit 1; fi
+      if [ "$_a" = "--limit" ] && [ "\${IX_FAKE_SMELLS_LIMIT:-}" != 1 ]; then echo "error: unknown option '--limit'" >&2; exit 1; fi
     done
     ;;
 esac
