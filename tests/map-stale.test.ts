@@ -126,6 +126,15 @@ describe("mapStaleFromJson / mapStaleFromLlm", () => {
     expect(mapStaleFromLlm("map files=1 regions=0 levels=1 rev=1 outcome=ok map_stale=true")).toEqual({ rev: undefined, files: undefined });
   });
 
+  test("a diagnostic code=map_stale record counts as the map record's flag", () => {
+    const diag = 'diagnostic code=map_stale message="Stale map: not recomputed after this edit. Every count and region here is from the last map (map rev 7, 38 files). Run ix map --remap to recompute it now; region views refresh it in the background."';
+    const record = "map files=38 regions=11 levels=2 rev=7 outcome=ok map_stale=true regions_as_of_rev=7 regions_as_of_files=38";
+    expect(mapStaleFromLlm(`${record}\n${diag}\nregion id=x`)).toEqual({ rev: 7, files: 38 });
+    expect(mapStaleFromLlm(`map files=38 regions=11 levels=2 rev=7 outcome=ok\n${diag}`)).toEqual({ rev: undefined, files: undefined });
+    // Another diagnostic is not a stale map.
+    expect(mapStaleFromLlm('map files=38 regions=11 levels=2 rev=7 outcome=ok\ndiagnostic code=other message="map_stale"')).toBeNull();
+  });
+
   test("the region view's stderr line is stale, coloured or not", () => {
     expect(mapStaleFromJson({ regions: [] }, `${STDERR_LINE}\n`)).toEqual({
       rev: undefined,
@@ -141,12 +150,28 @@ describe("mapStaleFromJson / mapStaleFromLlm", () => {
     expect(mapStaleNote({ reason: "another ix map is running" })).toBe(NOTE_PLAIN);
   });
 
-  test("a debounced or failed refresh points to ix map --remap, not a re-run", () => {
+  test("a refresh under way says re-run shortly", () => {
+    for (const why of ["refreshing in background", "another ix map is running"]) {
+      const stale = mapStaleFromJson({ regions: [] }, `${staleLine(why)}\n`);
+      expect(stale).toEqual({ rev: undefined, files: undefined, reason: why });
+      expect(mapStaleNote(stale!)).toBe(NOTE_PLAIN);
+      expect(mapStaleNote(mapStaleFromLlm(read("subsystems.txt"), `\u001b[2m${staleLine(why)}\u001b[22m\n`)!)).toBe(NOTE_PLAIN);
+      expect(mapStaleNote({ rev: 7, files: 38, reason: why })).toBe(NOTE_NAMED);
+    }
+  });
+
+  test("a debounced, failed, unstartable or disabled refresh points to ix map --remap, not a re-run", () => {
     for (const why of [
-      "a refresh was tried moments ago",
+      "its last background refresh failed",
+      "its refresh could not start",
       "its refresh failed",
+      "a refresh was tried moments ago",
+      "background refresh is off",
+      // Older #841 builds; still harmless.
       "its refresh did not complete",
       "files changed while it was refreshed",
+      // A reason this plugin does not know yet: the same as today.
+      "some future reason",
     ]) {
       const stale = mapStaleFromJson({ regions: [] }, `${staleLine(why)}\n`);
       expect(stale).toEqual({ rev: undefined, files: undefined, reason: why });
@@ -197,6 +222,26 @@ describe("ix-subsystems", () => {
 
     const viaStderr = await runTool("ix-subsystems.ts", {}, { stderr: STDERR_LINE }, { llm: true });
     expect(viaStderr).toBe(`## ix-subsystems\n\n${NOTE_PLAIN}\n\n${read("subsystems.txt").trim()}`);
+  });
+
+  test("llm path: a diagnostic code=map_stale record is kept and parsed without breaking", async () => {
+    const llm = read("subsystems.txt").replace(
+      /^(map [^\n]*)/,
+      '$1 map_stale=true regions_as_of_rev=7 regions_as_of_files=38\ndiagnostic code=map_stale message="Stale map: not recomputed after this edit."',
+    );
+    const out = await runTool("ix-subsystems.ts", {}, { llm, stderr: staleLine("refreshing in background") }, { llm: true });
+    expect(out).toBe(`## ix-subsystems\n\n${NOTE_NAMED}\n\n${llm.trim()}`);
+  });
+
+  test("llm path: each stderr reason picks its note", async () => {
+    for (const why of ["refreshing in background", "another ix map is running"]) {
+      const out = await runTool("ix-subsystems.ts", {}, { stderr: staleLine(why) }, { llm: true });
+      expect(out).toBe(`## ix-subsystems\n\n${NOTE_PLAIN}\n\n${read("subsystems.txt").trim()}`);
+    }
+    for (const why of ["its last background refresh failed", "its refresh could not start", "background refresh is off"]) {
+      const out = await runTool("ix-subsystems.ts", {}, { stderr: staleLine(why) }, { llm: true });
+      expect(out).toBe(`## ix-subsystems\n\n${NOTE_REMAP_PLAIN}\n\n${read("subsystems.txt").trim()}`);
+    }
   });
 });
 

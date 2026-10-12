@@ -11,10 +11,11 @@
  *   --format json   `map_stale: true` and `regions_as_of: {map_rev, file_count}`
  *                   (`false` / `null` when fresh)
  *   --format llm    `map_stale=true regions_as_of_rev=N regions_as_of_files=F`
- *                   on the `map` record (only when stale)
+ *                   on the `map` record (only when stale), followed by a
+ *                   `diagnostic code=map_stale message="..."` record
  *   stderr          `ix: architecture map is stale (<why>); ...` from a region
- *                   view that could not refresh it (another `ix map` holds the
- *                   lock, a refresh was tried moments ago, or it failed)
+ *                   view, which never refreshes inline: it answers from the
+ *                   last map and starts a detached background refresh
  *
  * A tool that shows regions labels them as the previous map's when any of
  * these says so. An older Ix sends none of them, and then this returns null
@@ -30,13 +31,19 @@ export type MapStale = { rev?: number; files?: number; reason?: string };
 const STALE_STDERR = /^ix: architecture map is stale\b(?: \(([^)\n]*)\))?/m;
 
 /**
- * The one reason a re-run may help: another `ix map` holds the lock and may
- * be refreshing. Every other reason Ix gives ("a refresh was tried moments
- * ago", "its refresh failed", "its refresh did not complete", "files changed
- * while it was refreshed") means a re-run inside the debounce window gives
- * the same stale answer, so the note points to `ix map --remap` instead.
+ * The reasons a re-run may help: a refresh is under way, either the
+ * background one this read just started or another `ix map` holding the lock.
+ * Every other reason Ix gives ("its last background refresh failed", "its
+ * refresh could not start", "its refresh failed", "a refresh was tried
+ * moments ago", "background refresh is off", and from older #841 builds "its
+ * refresh did not complete" and "files changed while it was refreshed"), and
+ * any reason this list does not know, means a re-run soon gives the same
+ * stale answer, so the note points to `ix map --remap` instead.
  */
-const REFRESH_RUNNING = "another ix map is running";
+const REFRESH_RUNNING: ReadonlySet<string> = new Set([
+  "refreshing in background",
+  "another ix map is running",
+]);
 
 const num = (v: unknown): number | undefined =>
   typeof v === "number" && Number.isFinite(v) ? v : undefined;
@@ -74,8 +81,11 @@ export function mapStaleFromLlm(text: string, stderr?: string): MapStale | null 
     record.match(new RegExp(`(?:^|\\s)${key}=(\\S+)`))?.[1];
   const rev = field("regions_as_of_rev");
   const files = field("regions_as_of_files");
+  // The `diagnostic code=map_stale` record repeats the `map` record's flag in a
+  // sentence; it stays in the text the model reads and counts as the same flag.
+  const diagnostic = text.split("\n").some((line) => /^diagnostic\s(?:.*\s)?code=map_stale(?:\s|$)/.test(line));
   const onStderr = staleOnStderr(stderr);
-  if (field("map_stale") !== "true" && rev === undefined && !onStderr) return null;
+  if (field("map_stale") !== "true" && rev === undefined && !diagnostic && !onStderr) return null;
   const toNum = (v: string | undefined) => (v !== undefined && /^\d+$/.test(v) ? Number(v) : undefined);
   return build(toNum(rev), toNum(files), onStderr);
 }
@@ -86,7 +96,7 @@ export function mapStaleNote(stale: MapStale): string {
     stale.rev !== undefined && stale.files !== undefined
       ? `regions as of map rev ${stale.rev}, ${stale.files} files`
       : "regions are from the previous map";
-  if (stale.reason !== undefined && stale.reason !== REFRESH_RUNNING) {
+  if (stale.reason !== undefined && !REFRESH_RUNNING.has(stale.reason)) {
     return `_Stale map: ${asOf}; not recomputed since recent edits — run \`ix map --remap\` to refresh._`;
   }
   return `_Stale map: ${asOf}; the map is refreshing — re-run after it completes._`;
