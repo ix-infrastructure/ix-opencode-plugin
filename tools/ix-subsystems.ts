@@ -9,7 +9,8 @@
  */
 
 import { runIx, failureDetail } from "../runtime/cli.ts";
-import { tryLlm } from "../runtime/llm.ts";
+import { tryLlmRun } from "../runtime/llm.ts";
+import { mapStaleFromJson, mapStaleFromLlm, mapStaleNote } from "../runtime/map-stale.ts";
 import { formatIxError, parseIxError } from "../runtime/ix-error.ts";
 import { toolCwd } from "../runtime/paths.ts";
 
@@ -29,8 +30,14 @@ type Context = { directory: string; worktree?: string };
 export async function execute(_params: Params, context: Context): Promise<string> {
   const dir = toolCwd(context);
 
-  const fast = await tryLlm(["subsystems"], dir);
-  if (fast) return `## ix-subsystems\n\n${fast}`;
+  const fast = await tryLlmRun(["subsystems"], dir);
+  if (fast) {
+    // A map deferred after an edit (Ix#841): the regions are the last map's.
+    const stale = mapStaleFromLlm(fast.text, fast.stderr);
+    return stale
+      ? `## ix-subsystems\n\n${mapStaleNote(stale)}\n\n${fast.text}`
+      : `## ix-subsystems\n\n${fast.text}`;
+  }
 
   const run = await runIx(["subsystems", "--format", "json"], dir);
   if (!run?.stdout.trim()) return unavailable(failureDetail(run));
@@ -44,6 +51,8 @@ export async function execute(_params: Params, context: Context): Promise<string
     levels?: number;
     map_rev?: number;
     outcome?: string;
+    map_stale?: boolean;
+    regions_as_of?: { map_rev?: number; file_count?: number } | null;
     regions?: {
       label?: string;
       label_kind?: string;
@@ -75,10 +84,15 @@ export async function execute(_params: Params, context: Context): Promise<string
     "## ix-subsystems",
     "",
     `**${regions.length} subsystem${regions.length === 1 ? "" : "s"}** — ${raw.file_count ?? "?"} files, ${raw.levels ?? "?"} level${raw.levels === 1 ? "" : "s"}`,
+  ];
+  // A map deferred after an edit (Ix#841): the counts are the last map's.
+  const stale = mapStaleFromJson(raw, run.stderr);
+  if (stale) lines.push(mapStaleNote(stale));
+  lines.push(
     "",
     "| Subsystem | Kind | Level | Files | Children | Interfaces | Confidence |",
     "|-----------|------|-------|-------|----------|------------|------------|",
-  ];
+  );
 
   for (const r of regions) {
     const name = r.label ?? "unknown";

@@ -155,7 +155,8 @@ describe("tool wiring", () => {
   for (const [file, header] of CASES) {
     test(`${file} keeps its header on the fast path`, async () => {
       const source = await Bun.file(`${import.meta.dir}/../tools/${file}`).text();
-      const index = source.indexOf("tryLlm(");
+      // `tryLlmRun` is `tryLlm` keeping stderr (Ix#841's stale-map line).
+      const index = source.search(/tryLlm(?:Run)?\(/);
       expect(index).toBeGreaterThan(-1);
       // The header has to appear in the fast-path return, which is the few
       // lines after the tryLlm call. Window is generous because some of those
@@ -175,7 +176,7 @@ describe("tool wiring", () => {
     const dir = `${import.meta.dir}/../tools`;
     for (const file of readdirSync(dir).filter((f) => f.endsWith(".ts"))) {
       const source = await Bun.file(`${dir}/${file}`).text();
-      for (const match of source.matchAll(/tryLlm\(\s*\[\s*"([a-z-]+)"/g)) {
+      for (const match of source.matchAll(/tryLlm(?:Run)?\(\s*\[\s*"([a-z-]+)"/g)) {
         expect(LLM_MIN_VERSION[match[1]!]).toBeDefined();
       }
     }
