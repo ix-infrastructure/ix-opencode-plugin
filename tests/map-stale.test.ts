@@ -25,6 +25,13 @@ const STDERR_LINE =
   "ix: architecture map is stale (another ix map is running); regions shown may predate recent edits. Run ix map --remap to refresh.";
 const NOTE_NAMED = "_Stale map: regions as of map rev 7, 38 files; the map is refreshing — re-run after it completes._";
 const NOTE_PLAIN = "_Stale map: regions are from the previous map; the map is refreshing — re-run after it completes._";
+/** The stderr line for a refresh that was debounced or failed (Ix#841 `ensureFreshMap`). */
+const staleLine = (why: string) =>
+  `ix: architecture map is stale (${why}); regions shown may predate recent edits. Run ix map --remap to refresh.`;
+const DEBOUNCED_LINE = staleLine("a refresh was tried moments ago");
+const FAILED_LINE = staleLine("its refresh failed");
+const NOTE_REMAP_NAMED = "_Stale map: regions as of map rev 7, 38 files; not recomputed since recent edits — run `ix map --remap` to refresh._";
+const NOTE_REMAP_PLAIN = "_Stale map: regions are from the previous map; not recomputed since recent edits — run `ix map --remap` to refresh._";
 
 /** `subsystems` (and `--list`, `stats`) answers for one run of a tool. */
 type Answers = {
@@ -120,13 +127,33 @@ describe("mapStaleFromJson / mapStaleFromLlm", () => {
   });
 
   test("the region view's stderr line is stale, coloured or not", () => {
-    expect(mapStaleFromJson({ regions: [] }, `${STDERR_LINE}\n`)).toEqual({ rev: undefined, files: undefined });
+    expect(mapStaleFromJson({ regions: [] }, `${STDERR_LINE}\n`)).toEqual({
+      rev: undefined,
+      files: undefined,
+      reason: "another ix map is running",
+    });
     expect(mapStaleFromLlm(read("subsystems.txt"), `\u001b[2m${STDERR_LINE}\u001b[22m\n`)).not.toBeNull();
   });
 
   test("the note", () => {
     expect(mapStaleNote({ rev: 7, files: 38 })).toBe(NOTE_NAMED);
     expect(mapStaleNote({})).toBe(NOTE_PLAIN);
+    expect(mapStaleNote({ reason: "another ix map is running" })).toBe(NOTE_PLAIN);
+  });
+
+  test("a debounced or failed refresh points to ix map --remap, not a re-run", () => {
+    for (const why of [
+      "a refresh was tried moments ago",
+      "its refresh failed",
+      "its refresh did not complete",
+      "files changed while it was refreshed",
+    ]) {
+      const stale = mapStaleFromJson({ regions: [] }, `${staleLine(why)}\n`);
+      expect(stale).toEqual({ rev: undefined, files: undefined, reason: why });
+      expect(mapStaleNote(stale!)).toBe(NOTE_REMAP_PLAIN);
+      expect(mapStaleNote(mapStaleFromLlm(read("subsystems.txt"), `\u001b[2m${staleLine(why)}\u001b[22m\n`)!)).toBe(NOTE_REMAP_PLAIN);
+    }
+    expect(mapStaleNote({ rev: 7, files: 38, reason: "its refresh failed" })).toBe(NOTE_REMAP_NAMED);
   });
 });
 
@@ -147,6 +174,14 @@ describe("ix-subsystems", () => {
   test("the stderr line alone labels them", async () => {
     const out = await runTool("ix-subsystems.ts", {}, { stderr: STDERR_LINE });
     expect(out).toContain(`**11 subsystems** — 38 files, 2 levels\n${NOTE_PLAIN}\n\n| Subsystem |`);
+  });
+
+  test("a debounced or failed refresh points to ix map --remap", async () => {
+    const json = await runTool("ix-subsystems.ts", {}, { stderr: DEBOUNCED_LINE });
+    expect(json).toContain(`**11 subsystems** — 38 files, 2 levels\n${NOTE_REMAP_PLAIN}\n\n| Subsystem |`);
+    expect(json).not.toContain("re-run after it completes");
+    const llm = await runTool("ix-subsystems.ts", {}, { stderr: FAILED_LINE }, { llm: true });
+    expect(llm).toBe(`## ix-subsystems\n\n${NOTE_REMAP_PLAIN}\n\n${read("subsystems.txt").trim()}`);
   });
 
   test("llm path: unchanged when fresh, labelled when stale", async () => {
@@ -179,6 +214,13 @@ describe("ix-map", () => {
     expect(out).toContain(`**Subsystems** (11, 38 files):\n${NOTE_NAMED}\n\n| Subsystem |`);
     const viaStderr = await runTool("ix-map.ts", {}, { stderr: STDERR_LINE });
     expect(viaStderr).toContain(`**Subsystems** (11, 38 files):\n${NOTE_PLAIN}\n\n| Subsystem |`);
+  });
+
+  test("a debounced or failed refresh points to ix map --remap", async () => {
+    const out = await runTool("ix-map.ts", {}, { json: withFields(read("subsystems.json"), STALE), stderr: FAILED_LINE });
+    expect(out).toContain(`**Subsystems** (11, 38 files):\n${NOTE_REMAP_NAMED}\n\n| Subsystem |`);
+    const debounced = await runTool("ix-map.ts", {}, { stderr: DEBOUNCED_LINE });
+    expect(debounced).toContain(`**Subsystems** (11, 38 files):\n${NOTE_REMAP_PLAIN}\n\n| Subsystem |`);
   });
 
   test("a scoped region is labelled too, and unchanged when fresh", async () => {

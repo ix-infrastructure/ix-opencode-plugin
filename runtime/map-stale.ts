@@ -21,17 +21,38 @@
  * and the tool's output is exactly what it was.
  */
 
-/** The map the regions come from, when Ix named it. */
-export type MapStale = { rev?: number; files?: number };
+/**
+ * The map the regions come from, when Ix named it, and why it is still stale
+ * when the stderr line said (the text in its parentheses).
+ */
+export type MapStale = { rev?: number; files?: number; reason?: string };
 
-const STALE_STDERR = /^ix: architecture map is stale\b/m;
+const STALE_STDERR = /^ix: architecture map is stale\b(?: \(([^)\n]*)\))?/m;
+
+/**
+ * The one reason a re-run may help: another `ix map` holds the lock and may
+ * be refreshing. Every other reason Ix gives ("a refresh was tried moments
+ * ago", "its refresh failed", "its refresh did not complete", "files changed
+ * while it was refreshed") means a re-run inside the debounce window gives
+ * the same stale answer, so the note points to `ix map --remap` instead.
+ */
+const REFRESH_RUNNING = "another ix map is running";
 
 const num = (v: unknown): number | undefined =>
   typeof v === "number" && Number.isFinite(v) ? v : undefined;
 
-function staleOnStderr(stderr: string | undefined): boolean {
-  if (!stderr) return false;
-  return STALE_STDERR.test(stderr.replace(/\u001b\[[0-9;]*m/g, ""));
+/** null without the stderr line; otherwise its reason, when it gave one. */
+function staleOnStderr(stderr: string | undefined): { reason?: string } | null {
+  if (!stderr) return null;
+  const m = stderr.replace(/\u001b\[[0-9;]*m/g, "").match(STALE_STDERR);
+  if (!m) return null;
+  return m[1] ? { reason: m[1] } : {};
+}
+
+function build(rev: number | undefined, files: number | undefined, onStderr: { reason?: string } | null): MapStale {
+  const out: MapStale = { rev, files };
+  if (onStderr?.reason !== undefined) out.reason = onStderr.reason;
+  return out;
 }
 
 /** From a `--format json` record and the run's stderr; null when the map is fresh. */
@@ -41,8 +62,9 @@ export function mapStaleFromJson(record: unknown, stderr?: string): MapStale | n
     r["regions_as_of"] && typeof r["regions_as_of"] === "object"
       ? (r["regions_as_of"] as Record<string, unknown>)
       : null;
-  if (r["map_stale"] !== true && asOf === null && !staleOnStderr(stderr)) return null;
-  return { rev: num(asOf?.["map_rev"]), files: num(asOf?.["file_count"]) };
+  const onStderr = staleOnStderr(stderr);
+  if (r["map_stale"] !== true && asOf === null && !onStderr) return null;
+  return build(num(asOf?.["map_rev"]), num(asOf?.["file_count"]), onStderr);
 }
 
 /** From `--format llm` text (its `map` record) and the run's stderr; null when the map is fresh. */
@@ -52,9 +74,10 @@ export function mapStaleFromLlm(text: string, stderr?: string): MapStale | null 
     record.match(new RegExp(`(?:^|\\s)${key}=(\\S+)`))?.[1];
   const rev = field("regions_as_of_rev");
   const files = field("regions_as_of_files");
-  if (field("map_stale") !== "true" && rev === undefined && !staleOnStderr(stderr)) return null;
+  const onStderr = staleOnStderr(stderr);
+  if (field("map_stale") !== "true" && rev === undefined && !onStderr) return null;
   const toNum = (v: string | undefined) => (v !== undefined && /^\d+$/.test(v) ? Number(v) : undefined);
-  return { rev: toNum(rev), files: toNum(files) };
+  return build(toNum(rev), toNum(files), onStderr);
 }
 
 /** One line saying the regions shown are the previous map's. */
@@ -63,5 +86,8 @@ export function mapStaleNote(stale: MapStale): string {
     stale.rev !== undefined && stale.files !== undefined
       ? `regions as of map rev ${stale.rev}, ${stale.files} files`
       : "regions are from the previous map";
+  if (stale.reason !== undefined && stale.reason !== REFRESH_RUNNING) {
+    return `_Stale map: ${asOf}; not recomputed since recent edits — run \`ix map --remap\` to refresh._`;
+  }
   return `_Stale map: ${asOf}; the map is refreshing — re-run after it completes._`;
 }
