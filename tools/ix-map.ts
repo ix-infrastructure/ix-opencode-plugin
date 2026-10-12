@@ -7,9 +7,10 @@
  * Use for orientation before exploration or planning.
  */
 
-import { safeRun } from "../runtime/cli.ts";
+import { runIx, safeRun } from "../runtime/cli.ts";
 import { ixErrorLines, parseIxError } from "../runtime/ix-error.ts";
 import { toolCwd } from "../runtime/paths.ts";
+import { mapStaleFromJson, mapStaleNote, type MapStale } from "../runtime/map-stale.ts";
 
 export const name = "ix-map";
 export const description =
@@ -78,16 +79,21 @@ async function fetchSubsystems(dir: string, scope?: string): Promise<string> {
 
     // `ix subsystems <region>` exits 1 for a region it cannot resolve while
     // still emitting the record (Ix#538), so keep stdout rather than throwing.
-    const output = await safeRun(args, dir);
+    // `runIx` with `safeRun`'s rule, keeping stderr: a region view says there
+    // when the map it answered from is stale (Ix#841).
+    const run = await runIx(args, dir);
+    const output = run && run.stdout.trim() ? run.stdout : null;
     if (output === null) throw new Error("ix subsystems produced no output");
     // An error record has no regions; reading it as a result said "none found".
     const ixErr = parseIxError(output);
     if (ixErr) return ["**Subsystems:**", ...ixErrorLines(ixErr)].join("\n");
     const parsed = JSON.parse(output) as SubsystemsRecord;
+    // A map deferred after an edit (Ix#841): the regions are the last map's.
+    const stale = mapStaleFromJson(parsed, run?.stderr);
 
     // `ix subsystems <region>` answers with that region (`target`) and its
     // `children`, not with a `regions` list.
-    if (parsed.target) return formatScoped(parsed);
+    if (parsed.target) return formatScoped(parsed, stale);
 
     const systems = parsed.regions ?? [];
 
@@ -97,10 +103,13 @@ async function fetchSubsystems(dir: string, scope?: string): Promise<string> {
 
     const lines = [
       `**Subsystems** (${systems.length}${parsed.file_count !== undefined ? `, ${parsed.file_count} files` : ""}):`,
+    ];
+    if (stale) lines.push(mapStaleNote(stale));
+    lines.push(
       "",
       "| Subsystem | Kind | Level | Files | Cohesion | Coupling | Confidence |",
       "|-----------|------|-------|-------|----------|----------|------------|",
-    ];
+    );
 
     for (const s of systems) {
       const cohesion = s.cohesion !== undefined ? s.cohesion.toFixed(2) : "—";
@@ -185,13 +194,17 @@ type SubsystemsRecord = {
   target?: Region;
   parent?: { label?: string; kind?: string } | null;
   children?: Region[];
+  /** Ix#841: set when the map was deferred after an edit; absent before it. */
+  map_stale?: boolean;
+  regions_as_of?: { map_rev?: number; file_count?: number } | null;
 };
 
-function formatScoped(parsed: SubsystemsRecord): string {
+function formatScoped(parsed: SubsystemsRecord, stale: MapStale | null): string {
   const t = parsed.target!;
   const lines = [
     `**Subsystem ${t.label ?? "?"}** (${t.kind ?? "region"}, level ${t.level ?? "?"}, ${t.files ?? "?"} files, confidence ${t.confidence !== undefined ? t.confidence.toFixed(2) : "—"})`,
   ];
+  if (stale) lines.push(mapStaleNote(stale));
   if (parsed.parent?.label) lines.push(`Part of: ${parsed.parent.label}`);
   const children = parsed.children ?? [];
   if (children.length > 0) {

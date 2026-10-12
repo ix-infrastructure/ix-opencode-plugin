@@ -41,7 +41,7 @@
  * absent from the table below and must stay absent.
  */
 
-import { runIx, safeRun } from "./cli.ts";
+import { runIx } from "./cli.ts";
 import { redactSecrets } from "./secrets.ts";
 
 type SemVer = [number, number, number];
@@ -155,6 +155,17 @@ export async function tryLlm(
   args: readonly string[],
   cwd: string,
 ): Promise<string | null> {
+  return (await tryLlmRun(args, cwd))?.text ?? null;
+}
+
+/**
+ * `tryLlm`, keeping the run's stderr beside the text: a region view says on
+ * stderr when the map it answered from is stale (Ix#841).
+ */
+export async function tryLlmRun(
+  args: readonly string[],
+  cwd: string,
+): Promise<{ text: string; stderr: string } | null> {
   if (llmDisabled()) return null;
   if (!commandAllowsLlm(args)) return null;
 
@@ -162,22 +173,23 @@ export async function tryLlm(
   const version = await detectVersion(cwd);
   if (version === null || !gte(version, floor)) return null;
 
-  // `safeRun`, not a bare `.text()`: several ix commands exit 1 for "that does
+  // `runIx` with `safeRun`'s rule (a body or nothing), not a bare `.text()`:
+  // several ix commands exit 1 for "that does
   // not exist" while printing a complete llm record, and Ix#547 takes that from
   // three commands to thirteen. Throwing the body away on a non-zero exit sends
   // every one of those down the JSON path, which discards it a second time and
   // reports the CLI as unavailable. `isLlmErrorLine` below already handles a
   // genuine `error code=...` record, so a failure that says something useful is
   // still rejected on its merits rather than on its exit code.
-  const out = await safeRun([...args, "--format", "llm"], cwd);
-  if (out === null) return null;
+  const run = await runIx([...args, "--format", "llm"], cwd);
+  if (!run || !run.stdout.trim()) return null;
 
   // Scrubbed before it reaches the model. The JSON path does not do this today,
   // so this is not parity with it, just the cheaper side of the choice: redactSecrets is idempotent and order-free, so
   // one pass over flat key=value lines costs nothing and cannot make the output
   // wrong. Bringing the JSON path up to match is a separate change.
-  const text = redactSecrets(out).trim();
+  const text = redactSecrets(run.stdout).trim();
   if (!text) return null;
   if (isLlmErrorLine(text)) return null;
-  return text;
+  return { text, stderr: run.stderr };
 }
