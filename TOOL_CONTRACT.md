@@ -172,6 +172,7 @@ Risk levels: `low` → `SAFE TO PROCEED`, `medium` → `REVIEW CALLERS FIRST`, `
 - Lists `scores[]` from `ix subsystems --list` as subsystem health
 - Takes the file count from `stats.nodes.byKind` (kind `file`) and totals from `nodes.total` / `edges.total`
 - Flags multi-file subsystems with low cohesion (< 0.4) with ⚠. Ix's `coupling` is an edge-weight count, not a 0–1 ratio, so it is shown but not judged
+- When either `ix subsystems` call reports the architecture map stale (`map_stale: true`, Ix#880), adds one line under the heading: `_Map is stale (regions as of map rev 7, 42 files); recent edits may not be reflected — a background refresh is running._` (the parenthetical only when Ix gives `regions_as_of`). Without the field (fresh map, older CLI) the output is unchanged
 
 **Example output:**
 ```
@@ -382,7 +383,9 @@ _55 files · 870 nodes_
 
 **Parameters:** none
 
-**CLI:** `ix subsystems --format json`
+**CLI:** `ix subsystems --format llm` (CLI ≥ 0.7.0), else `ix subsystems --format json`
+
+When Ix reports the architecture map stale (llm `diagnostic code=map_stale` record, or JSON `map_stale: true`; Ix#880), the same stale line as `ix-map` goes under the heading and the raw diagnostic record is not repeated. Without it the output is unchanged.
 
 ---
 

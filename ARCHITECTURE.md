@@ -38,6 +38,7 @@ ix-opencode-plugin/
     cli.ts                   # runs `ix` with a deadline
     automap.ts               # guarded, debounced post-edit `ix map`
     llm.ts                   # version-gated `--format llm` fast path
+    map-stale.ts             # Ix's stale-architecture-map signal (Ix#880)
     secrets.ts               # secret redaction for tool output
   commands/
     ix-understand.md         # /ix-understand — architectural mental model

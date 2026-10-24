@@ -112,6 +112,14 @@ file, `summary.{callers,callees}` for a function, `propagationBuckets[].region`,
 and for `impact-degraded.json` the `graph` block with `riskLevel: "unknown"`
 that Ix emits on a hollow graph.
 
+`synthetic/subsystems-stale*.{json,txt}`, `synthetic/subsystems-list-stale.json`
+and `synthetic/subsystems-scope-stale.json` are the `success/subsystems*`
+captures as a CLI with Ix#880 prints them while the architecture map is stale:
+JSON gains top-level `map_stale: true` and (except `-no-asof`) `regions_as_of`
+(`{map_rev, file_count}`), llm gains one `diagnostic code=map_stale` record
+first, worded as Ix's `mapStaleNotice`. Not v0.12.0 output; kept here beside
+the captures they extend.
+
 `synthetic/smells-run*.{json,txt}` are `ix smells` detection runs (no `--list`),
 built from `renderSmellsRunLlm` and the compact JSON in Ix's
 `ix-cli/src/cli/commands/smells.ts`. A real capture needs a detection run, which
