@@ -593,8 +593,8 @@ describe("ix-smells on real output", () => {
  * added, as Ix's `mapStaleJson` / `mapStaleLlm` add them.
  */
 describe("a stale architecture map is said once, under the heading", () => {
-  const STALE = "_Map is stale (regions as of map rev 1, 38 files); recent edits may not be reflected — a background refresh is running._";
-  const STALE_NO_ASOF = "_Map is stale; recent edits may not be reflected — a background refresh is running._";
+  const STALE = "_Map is stale (regions as of map rev 1, 38 files); recent edits may not be reflected — run `ix map --remap` to refresh it now._";
+  const STALE_NO_ASOF = "_Map is stale; recent edits may not be reflected — run `ix map --remap` to refresh it now._";
   const withoutLine = (output: string, line: string) => output.replace(`${line}\n\n`, "");
 
   for (const llm of [false, true]) {

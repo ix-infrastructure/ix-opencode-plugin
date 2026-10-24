@@ -48,6 +48,24 @@ describe("splitLlmMapStale", () => {
     expect(body).toBe("map files=1");
   });
 
+  test("two records: both come out, the first one names the map", () => {
+    const second = 'diagnostic code=map_stale message="Stale map (map rev 9, 50 files)."';
+    const { stale, body } = splitLlmMapStale(`${RECORD}\nmap files=42 regions=3\n${second}\nregion id=a label=X`);
+    expect(stale).toEqual({ regionsAsOf: { map_rev: 7, file_count: 42 } });
+    expect(body).toBe("map files=42 regions=3\nregion id=a label=X");
+  });
+
+  test("a record that is not the first line is still found and taken out", () => {
+    const { stale, body } = splitLlmMapStale(`map files=42 regions=3\n${RECORD}\nregion id=a label=X`);
+    expect(stale).toEqual({ regionsAsOf: { map_rev: 7, file_count: 42 } });
+    expect(body).toBe("map files=42 regions=3\nregion id=a label=X");
+  });
+
+  test("a 1-file map is read from the singular \"1 file\"", () => {
+    const { stale } = splitLlmMapStale('diagnostic code=map_stale message="Stale map (map rev 3, 1 file)."\nmap files=1');
+    expect(stale).toEqual({ regionsAsOf: { map_rev: 3, file_count: 1 } });
+  });
+
   test("text without the record comes back unchanged", () => {
     const text = "map files=1 regions=1\ndiagnostic code=other message=x";
     expect(splitLlmMapStale(text)).toEqual({ stale: null, body: text });
@@ -61,10 +79,22 @@ describe("splitLlmMapStale", () => {
 describe("mapStaleLine", () => {
   test("names the map when known", () => {
     expect(mapStaleLine({ regionsAsOf: { map_rev: 7, file_count: 42 } })).toBe(
-      "_Map is stale (regions as of map rev 7, 42 files); recent edits may not be reflected — a background refresh is running._",
+      "_Map is stale (regions as of map rev 7, 42 files); recent edits may not be reflected — run `ix map --remap` to refresh it now._",
     );
     expect(mapStaleLine({})).toBe(
-      "_Map is stale; recent edits may not be reflected — a background refresh is running._",
+      "_Map is stale; recent edits may not be reflected — run `ix map --remap` to refresh it now._",
     );
+  });
+
+  test("a 1-file map says \"1 file\"", () => {
+    expect(mapStaleLine({ regionsAsOf: { map_rev: 3, file_count: 1 } })).toBe(
+      "_Map is stale (regions as of map rev 3, 1 file); recent edits may not be reflected — run `ix map --remap` to refresh it now._",
+    );
+  });
+
+  test("does not promise a background refresh", () => {
+    for (const s of [{}, { regionsAsOf: { map_rev: 7, file_count: 42 } }]) {
+      expect(mapStaleLine(s)).not.toContain("background refresh");
+    }
   });
 });

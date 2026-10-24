@@ -79,10 +79,16 @@ export function splitLlmMapStale(text: string): { stale: MapStale | null; body: 
   return { stale, body: kept.join("\n").trim() };
 }
 
-/** The one line a tool puts under its heading while the map is stale. */
+/**
+ * The one line a tool puts under its heading while the map is stale. It does
+ * not say a background refresh is under way: Ix also reports a stale map when
+ * background refresh is off (IX_MAP_BACKGROUND_REFRESH=0), failed or could
+ * not start. It carries the remedy Ix's own llm record gives, which the tool
+ * drops from the body.
+ */
 export function mapStaleLine(stale: MapStale): string {
   const asOf = stale.regionsAsOf
     ? ` (regions as of map rev ${stale.regionsAsOf.map_rev}, ${stale.regionsAsOf.file_count} file${stale.regionsAsOf.file_count === 1 ? "" : "s"})`
     : "";
-  return `_Map is stale${asOf}; recent edits may not be reflected — a background refresh is running._`;
+  return `_Map is stale${asOf}; recent edits may not be reflected — run \`ix map --remap\` to refresh it now._`;
 }
