@@ -10,6 +10,7 @@
 import { safeRun } from "../runtime/cli.ts";
 import { ixErrorLines, parseIxError } from "../runtime/ix-error.ts";
 import { toolCwd } from "../runtime/paths.ts";
+import { mapStaleFromJson, mapStaleLine, type MapStale } from "../runtime/map-stale.ts";
 
 export const name = "ix-map";
 export const description =
@@ -49,28 +50,31 @@ export async function execute(
   const dir = toolCwd(context);
   const includeStats = params.include_stats !== false;
 
-  const fetches: Promise<string>[] = [
+  const [subsystems, subsystemList, stats] = await Promise.all([
     fetchSubsystems(dir, params.scope),
     fetchSubsystemList(dir),
-  ];
-  if (includeStats) fetches.push(fetchStats(dir));
-
-  const [subsystems, subsystemList, stats] = await Promise.all(
-    fetches.length === 3
-      ? fetches
-      : [...fetches, Promise.resolve("")]
-  );
+    includeStats ? fetchStats(dir) : Promise.resolve(""),
+  ]);
 
   const sections = [`## ix-map${params.scope ? `: ${params.scope}` : ""}`, ""];
 
+  // Both `ix subsystems` calls read the map's regions; either may say it is
+  // stale (Ix#880). One line under the heading, preferring the one that names
+  // the map the regions are from. Absent from both: output as before.
+  const stale = [subsystems.stale, subsystemList.stale].find((s) => s?.regionsAsOf) ?? subsystems.stale ?? subsystemList.stale;
+  if (stale) sections.push(mapStaleLine(stale), "");
+
   if (stats) sections.push(stats, "");
-  sections.push(subsystems);
-  if (subsystemList) sections.push("", subsystemList);
+  sections.push(subsystems.text);
+  if (subsystemList.text) sections.push("", subsystemList.text);
 
   return sections.join("\n");
 }
 
-async function fetchSubsystems(dir: string, scope?: string): Promise<string> {
+/** A section's text, and whether the ix output it came from said the map is stale. */
+type Section = { text: string; stale?: MapStale | null };
+
+async function fetchSubsystems(dir: string, scope?: string): Promise<Section> {
   try {
     const args = scope
       ? ["subsystems", scope, "--format", "json"]
@@ -82,17 +86,18 @@ async function fetchSubsystems(dir: string, scope?: string): Promise<string> {
     if (output === null) throw new Error("ix subsystems produced no output");
     // An error record has no regions; reading it as a result said "none found".
     const ixErr = parseIxError(output);
-    if (ixErr) return ["**Subsystems:**", ...ixErrorLines(ixErr)].join("\n");
+    if (ixErr) return { text: ["**Subsystems:**", ...ixErrorLines(ixErr)].join("\n") };
     const parsed = JSON.parse(output) as SubsystemsRecord;
+    const stale = mapStaleFromJson(parsed);
 
     // `ix subsystems <region>` answers with that region (`target`) and its
     // `children`, not with a `regions` list.
-    if (parsed.target) return formatScoped(parsed);
+    if (parsed.target) return { text: formatScoped(parsed), stale };
 
     const systems = parsed.regions ?? [];
 
     if (systems.length === 0) {
-      return "**Subsystems:** none found. Run `ix map` to build the graph.";
+      return { text: "**Subsystems:** none found. Run `ix map` to build the graph.", stale };
     }
 
     const lines = [
@@ -114,26 +119,27 @@ async function fetchSubsystems(dir: string, scope?: string): Promise<string> {
       );
     }
 
-    return lines.join("\n");
+    return { text: lines.join("\n"), stale };
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
-    return `**Subsystems:** unavailable — ${msg}`;
+    return { text: `**Subsystems:** unavailable — ${msg}` };
   }
 }
 
-async function fetchSubsystemList(dir: string): Promise<string> {
+async function fetchSubsystemList(dir: string): Promise<Section> {
   try {
     const output = await safeRun(["subsystems", "--list", "--format", "json"], dir);
     if (output === null) throw new Error("no output");
-    if (parseIxError(output)) return "";
+    if (parseIxError(output)) return { text: "" };
     // `{"scores":[{"name","level","health","files",...}]}`, healthiest first.
     const parsed = JSON.parse(output) as { scores?: { name?: string; health?: number }[] };
+    const stale = mapStaleFromJson(parsed);
     const scores = (parsed.scores ?? []).filter((s) => typeof s.name === "string");
-    if (scores.length === 0) return "";
+    if (scores.length === 0) return { text: "", stale };
     const named = scores.map((s) => (s.health !== undefined ? `${s.name} (${s.health.toFixed(2)})` : s.name));
-    return `**Subsystem health:** ${named.join(", ")}`;
+    return { text: `**Subsystem health:** ${named.join(", ")}`, stale };
   } catch {
-    return "";
+    return { text: "" };
   }
 }
 

@@ -582,6 +582,110 @@ describe("ix-smells on real output", () => {
   });
 });
 
+// ─── stale architecture map (Ix#880) ─────────────────────────────────────────
+
+/**
+ * Since Ix#880 a region reader answering from a deferred map says so: JSON
+ * `map_stale: true` (+ `regions_as_of`), llm one `diagnostic code=map_stale`
+ * record. The tools turn that into one line under the heading; without it
+ * (fresh map, or a CLI before Ix#880) their output is exactly as before.
+ * `synthetic/*-stale*` are the success captures with those keys/that record
+ * added, as Ix's `mapStaleJson` / `mapStaleLlm` add them.
+ */
+describe("a stale architecture map is said once, under the heading", () => {
+  const STALE = "_Map is stale (regions as of map rev 1, 38 files); recent edits may not be reflected — a background refresh is running._";
+  const STALE_NO_ASOF = "_Map is stale; recent edits may not be reflected — a background refresh is running._";
+  const withoutLine = (output: string, line: string) => output.replace(`${line}\n\n`, "");
+
+  for (const llm of [false, true]) {
+    const path_ = llm ? "llm" : "JSON";
+
+    test(`ix-subsystems (${path_}): stale map, with regions_as_of`, async () => {
+      const fresh = await runTool("ix-subsystems.ts", {}, [["'subsystems '*", "success/subsystems"]], { llm });
+      const stale = await runTool("ix-subsystems.ts", {}, [["'subsystems '*", "synthetic/subsystems-stale"]], { llm });
+      expect(stale.output.startsWith(`## ix-subsystems\n\n${STALE}\n\n`)).toBe(true);
+      expect(stale.output.split(STALE).length).toBe(2);
+      // The raw record is not passed through as well.
+      expect(stale.output).not.toContain("diagnostic code=map_stale");
+      expect(stale.output).not.toContain("Stale map:");
+      expect(withoutLine(stale.output, STALE)).toBe(fresh.output);
+      expectNoMissedFields(stale.output);
+    });
+
+    test(`ix-subsystems (${path_}): stale map, no regions_as_of`, async () => {
+      const fresh = await runTool("ix-subsystems.ts", {}, [["'subsystems '*", "success/subsystems"]], { llm });
+      const stale = await runTool("ix-subsystems.ts", {}, [["'subsystems '*", "synthetic/subsystems-stale-no-asof"]], { llm });
+      expect(stale.output.startsWith(`## ix-subsystems\n\n${STALE_NO_ASOF}\n\n`)).toBe(true);
+      expect(stale.output).not.toContain("diagnostic code=map_stale");
+      expect(withoutLine(stale.output, STALE_NO_ASOF)).toBe(fresh.output);
+    });
+
+    test(`ix-subsystems (${path_}): fresh map, no stale line`, async () => {
+      const { output } = await runTool("ix-subsystems.ts", {}, [["'subsystems '*", "success/subsystems"]], { llm });
+      expect(output).not.toContain("Map is stale");
+      expect(output.startsWith(llm ? "## ix-subsystems\n\nmap files=38" : "## ix-subsystems\n\n**11 subsystems**")).toBe(true);
+    });
+  }
+
+  // ix-map runs only `--format json` (no llm path), so the llm case is that
+  // turning the llm fast path on changes nothing.
+  for (const llm of [false, true]) {
+    const label = llm ? " with the llm fast path allowed" : "";
+
+    test(`ix-map${label}: stale map, with regions_as_of`, async () => {
+      const fresh = await runTool("ix-map.ts", {}, MAP_ROUTES, { llm });
+      const stale = await runTool("ix-map.ts", {}, [
+        ["'subsystems --list '*", "synthetic/subsystems-list-stale"],
+        ["'subsystems --format '*", "synthetic/subsystems-stale"],
+        ["'stats '*", "success/stats"],
+      ], { llm });
+      expect(stale.output.startsWith(`## ix-map\n\n${STALE}\n\n**Codebase:**`)).toBe(true);
+      // Both region reads said it; the tool says it once.
+      expect(stale.output.split(STALE).length).toBe(2);
+      expect(withoutLine(stale.output, STALE)).toBe(fresh.output);
+      expectNoMissedFields(stale.output);
+    });
+
+    test(`ix-map${label}: fresh map, no stale line`, async () => {
+      const { output } = await runTool("ix-map.ts", {}, MAP_ROUTES, { llm });
+      expect(output).not.toContain("Map is stale");
+      expect(output.startsWith("## ix-map\n\n**Codebase:**")).toBe(true);
+    });
+  }
+
+  test("ix-map: prefers the read that names the map", async () => {
+    const { output } = await runTool("ix-map.ts", {}, [
+      ["'subsystems --list '*", "synthetic/subsystems-list-stale"],
+      ["'subsystems --format '*", "synthetic/subsystems-stale-no-asof"],
+      ["'stats '*", "success/stats"],
+    ]);
+    expect(output.startsWith(`## ix-map\n\n${STALE}\n\n`)).toBe(true);
+    expect(output).not.toContain(STALE_NO_ASOF);
+  });
+
+  test("ix-map: only the health list says it", async () => {
+    const fresh = await runTool("ix-map.ts", {}, MAP_ROUTES);
+    const { output } = await runTool("ix-map.ts", {}, [
+      ["'subsystems --list '*", "synthetic/subsystems-list-stale"],
+      ["'subsystems --format '*", "success/subsystems"],
+      ["'stats '*", "success/stats"],
+    ]);
+    expect(withoutLine(output, STALE)).toBe(fresh.output);
+    expect(output).toContain(STALE);
+  });
+
+  test("ix-map with a scope, stats off: the line goes under the heading", async () => {
+    const routes: Route[] = [
+      ["'subsystems --list '*", "success/subsystems-list"],
+      ["'subsystems Runtime '*", "synthetic/subsystems-scope-stale"],
+    ];
+    const fresh = await runTool("ix-map.ts", { scope: "Runtime", include_stats: false }, MAP_ROUTES);
+    const stale = await runTool("ix-map.ts", { scope: "Runtime", include_stats: false }, routes);
+    expect(stale.output.startsWith(`## ix-map: Runtime\n\n${STALE}\n\n**Subsystem Runtime**`)).toBe(true);
+    expect(withoutLine(stale.output, STALE)).toBe(fresh.output);
+  });
+});
+
 // ─── cwd ─────────────────────────────────────────────────────────────────────
 
 describe("tools run ix in the session directory", () => {

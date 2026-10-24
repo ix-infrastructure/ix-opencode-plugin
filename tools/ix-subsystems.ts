@@ -12,6 +12,7 @@ import { runIx, failureDetail } from "../runtime/cli.ts";
 import { tryLlm } from "../runtime/llm.ts";
 import { formatIxError, parseIxError } from "../runtime/ix-error.ts";
 import { toolCwd } from "../runtime/paths.ts";
+import { mapStaleFromJson, mapStaleLine, splitLlmMapStale, type MapStale } from "../runtime/map-stale.ts";
 
 export const name = "ix-subsystems";
 export const description =
@@ -30,7 +31,12 @@ export async function execute(_params: Params, context: Context): Promise<string
   const dir = toolCwd(context);
 
   const fast = await tryLlm(["subsystems"], dir);
-  if (fast) return `## ix-subsystems\n\n${fast}`;
+  if (fast) {
+    // A stale map's `diagnostic code=map_stale` record becomes the one stale
+    // line under the heading instead of being passed through as well.
+    const { stale, body } = splitLlmMapStale(fast);
+    return ["## ix-subsystems", "", ...staleLines(stale), body].join("\n");
+  }
 
   const run = await runIx(["subsystems", "--format", "json"], dir);
   if (!run?.stdout.trim()) return unavailable(failureDetail(run));
@@ -62,11 +68,13 @@ export async function execute(_params: Params, context: Context): Promise<string
     return `## ix-subsystems\n\nFailed to parse output.\n\`\`\`\n${output.slice(0, 400)}\n\`\`\``;
   }
 
+  const stale = staleLines(mapStaleFromJson(raw));
   const regions = raw.regions ?? [];
   if (regions.length === 0) {
     return [
       "## ix-subsystems",
       "",
+      ...stale,
       "**No subsystems found.** Run `ix map` to build the graph.",
     ].join("\n");
   }
@@ -74,6 +82,7 @@ export async function execute(_params: Params, context: Context): Promise<string
   const lines = [
     "## ix-subsystems",
     "",
+    ...stale,
     `**${regions.length} subsystem${regions.length === 1 ? "" : "s"}** — ${raw.file_count ?? "?"} files, ${raw.levels ?? "?"} level${raw.levels === 1 ? "" : "s"}`,
     "",
     "| Subsystem | Kind | Level | Files | Children | Interfaces | Confidence |",
@@ -94,6 +103,11 @@ export async function execute(_params: Params, context: Context): Promise<string
   if (raw.outcome) lines.push("", `_Outcome: ${raw.outcome}_`);
 
   return lines.join("\n");
+}
+
+/** The stale line and a blank line, or nothing when the map is fresh (output unchanged). */
+function staleLines(stale: MapStale | null): string[] {
+  return stale ? [mapStaleLine(stale), ""] : [];
 }
 
 function unavailable(err: string): string {
