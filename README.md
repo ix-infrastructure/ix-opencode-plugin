@@ -174,9 +174,8 @@ All tools call the `ix` CLI, with a timeout on every call.
 |---------|------|--------|
 | Any session | `AGENTS.md` injection | Always-on graph-first guidance |
 | After file edit | `tool.execute.after` | Guarded, debounced `ix map` of the repo root, in the background |
-| After ix-* tools | `tool.execute.after` | Appends a refresh note when the output signals a stale graph |
 
-The hooks never block an action. There is no pre-edit gate: `ix-decide` is a tool the agent calls, not a hook. The plugin runs no `ix` command at startup.
+The hook never blocks an action. A stale architecture map is reported by the ix-* tools themselves, from the `map_stale` signal Ix prints, not by a hook. There is no pre-edit gate: `ix-decide` is a tool the agent calls, not a hook. The plugin runs no `ix` command at startup.
 
 ## Further reading
 

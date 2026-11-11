@@ -339,8 +339,9 @@ describe("ix-decide", () => {
     const out = await decide(one, impactByPath({ "src/foo.ts": "synthetic/impact-file-low.json" }));
     expect(out).toContain("**Verdict:** ALLOW");
     expect(out).toContain("**Risk:** LOW");
-    // directImporters 1 + directDependents 0 + memberLevelCallers 1
-    expect(out).toContain("**Total dependents:** 2");
+    // max(directImporters 1 + directDependents 0, memberLevelCallers 1): the
+    // one importer and the one member caller are the same file.
+    expect(out).toContain("**Total dependents:** 1");
     expect(out).toContain("**Subsystems affected:** Util");
   });
 
@@ -351,6 +352,15 @@ describe("ix-decide", () => {
     );
     expect(out).toContain("**Verdict:** ALLOW");
     expect(out).toContain("**Total dependents:** 1");
+  });
+
+  test("an importer that is also a dependent is counted once (dependentList, Ix v0.14.0+)", async () => {
+    // summary says 3 importers + 2 dependents, but Ix's de-duplicated
+    // dependentList has 3 rows: two of the dependents are also importers.
+    const out = await decide(one, impactByPath({ "src/foo.ts": "synthetic/impact-file-dependentlist.json" }));
+    expect(out).toContain("**Total dependents:** 3");
+    expect(out).not.toContain("**Total dependents:** 5");
+    expect(out).not.toContain("**Total dependents:** 7");
   });
 
   test("REVIEW on riskLevel high, BLOCK on critical", async () => {
@@ -370,7 +380,7 @@ describe("ix-decide", () => {
       impactByPath({ "src/a.ts": "synthetic/impact-file-low.json", "src/b.ts": "empty-graph/impact-file.json" }),
     );
     expect(out).toContain("**Verdict:** REVIEW");
-    expect(out).toContain("`src/a.ts` — LOW, 2 dependents");
+    expect(out).toContain("`src/a.ts` — LOW, 1 dependents");
     expect(out).toContain("`src/b.ts` — UNKNOWN (not assessed)");
   });
 
@@ -387,5 +397,68 @@ describe("ix-decide", () => {
   test("no paths is not a clearance", async () => {
     const out = await decide({ touched_paths: [] }, impactByPath({}));
     expect(out).toContain("**Verdict:** REVIEW");
+  });
+});
+
+// ─── a JSON error record on a secondary call (#44) ──────────────────────────
+
+/**
+ * Since Ix#1043 a failing `--format json` run prints one error record on
+ * stdout and exits non-zero (Ix ix-cli/src/cli/errors.ts `emitErrorRecord`;
+ * `backendUnreachableError` for the wording). `synthetic/error-backend-
+ * unreachable.json` is that record for the default endpoint. These two calls
+ * are enrichment with a fallback, so the record must send them to it rather
+ * than be read as an empty result.
+ */
+describe("a JSON error record is an error, not an empty result", () => {
+  const UNREACHABLE = "synthetic/error-backend-unreachable.json";
+
+  test("the fixture is the record parseIxError recognises", () => {
+    const err = parseIxError(read(UNREACHABLE));
+    expect(err?.code).toBe("backend_unreachable");
+    expect(err?.hint).toContain("ix docker start");
+  });
+
+  test("ix-impact: `ix callers` failing falls back to the callers impact listed", async () => {
+    const out = await runTool(
+      "ix-impact.ts",
+      { target: "runIx" },
+      `
+case "\${1:-}" in
+  impact) cat ${sq(fixture("success/impact-function.json"))}; exit 0 ;;
+  callers) cat ${sq(fixture(UNREACHABLE))}; exit 1 ;;
+esac
+exit 3`,
+      { IX_DISABLE_LLM_FORMAT: "1" },
+    );
+    expect(out).toContain("**Verdict:** REVIEW CALLERS FIRST");
+    // success/impact-function.json's callerList names `execute` and `safeRun`.
+    expect(out).toContain("**Key callers:**");
+    expect(out).toContain("- `execute`");
+    expect(out).toContain("Test `execute`");
+    expect(out).not.toContain("Review the callers and run tests");
+  });
+
+  test("ix-history: `ix decisions` failing falls back to the briefing's decisions", async () => {
+    // A briefing with only the fields ix-history reads (tools/ix-history.ts);
+    // Ix Pro's full briefing is not in this repository.
+    const briefing = JSON.stringify({
+      revision: "42",
+      recentDecisions: [{ title: "Keep the graph read-only from hooks", date: "2026-10-01" }],
+    });
+    const out = await runTool(
+      "ix-history.ts",
+      { topic: "hooks", include: ["briefing", "decisions"] },
+      `
+case "\${1:-}" in
+  briefing) echo ${sq(briefing)}; exit 0 ;;
+  decisions) cat ${sq(fixture(UNREACHABLE))}; exit 1 ;;
+esac
+exit 3`,
+      { IX_DISABLE_LLM_FORMAT: "1" },
+    );
+    expect(out).toContain("**Revision:** 42");
+    expect(out).toContain("Keep the graph read-only from hooks");
+    expect(out).not.toContain("**Recent decisions:** none");
   });
 });

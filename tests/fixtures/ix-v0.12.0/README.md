@@ -112,6 +112,13 @@ file, `summary.{callers,callees}` for a function, `propagationBuckets[].region`,
 and for `impact-degraded.json` the `graph` block with `riskLevel: "unknown"`
 that Ix emits on a hollow graph.
 
+`synthetic/impact-file-dependentlist.json` is a file record as Ix v0.14.0 and
+later prints it (Ix#876): the same fields plus `dependentList`, every direct
+importer and dependent de-duplicated by node id, each row
+`{kind, name, path, lineStart, lineEnd, via}`. Here two of the two
+`directDependents` are also importers, so `dependentList` has 3 rows against
+`directImporters + directDependents` = 5. Not v0.12.0 output.
+
 `synthetic/subsystems-stale*.{json,txt}`, `synthetic/subsystems-list-stale.json`
 and `synthetic/subsystems-scope-stale.json` are the `success/subsystems*`
 captures as a CLI with Ix#880 prints them while the architecture map is stale:
@@ -120,7 +127,22 @@ JSON gains top-level `map_stale: true` and (except `-no-asof`) `regions_as_of`
 first, worded as Ix's `mapStaleNotice`. Not v0.12.0 output; kept here beside
 the captures they extend.
 
+`synthetic/impact-file-stale.json`, `synthetic/explain-stale.{json,txt}` and
+`synthetic/locate-stale.json` are `success/impact-file`, `success/explain` and
+`success/locate` as a CLI with Ix#880 prints them while the map is stale:
+JSON gains `map_stale: true` and `regions_as_of` (`{map_rev: 1, file_count: 38}`)
+where Ix's `mapStaleJson` spreads them (impact: after `resolvedTarget`, as no
+`graph` block is present; explain and locate: last), llm gains the
+`diagnostic code=map_stale` record first, copied from
+`synthetic/subsystems-stale.txt`. Not v0.12.0 output.
+
 `synthetic/smells-run*.{json,txt}` are `ix smells` detection runs (no `--list`),
 built from `renderSmellsRunLlm` and the compact JSON in Ix's
 `ix-cli/src/cli/commands/smells.ts`. A real capture needs a detection run, which
 stores claims; the throwaway capture backend recorded only `--list` output.
+
+`synthetic/error-backend-unreachable.json` is the JSON error record a failing
+`--format json` run prints on stdout, exit 1, since Ix#1043 (on Ix `main`,
+not in a release yet): `{"error", "message", "next"}` from `emitErrorRecord`
+in Ix's `ix-cli/src/cli/errors.ts`, worded as its `backendUnreachableError` for
+the default endpoint. Not v0.12.0 output.

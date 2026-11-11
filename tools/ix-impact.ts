@@ -9,6 +9,7 @@
 
 import { runIx, safeRun, failureDetail } from "../runtime/cli.ts";
 import { formatIxError, parseIxError } from "../runtime/ix-error.ts";
+import { mapStaleFromJson, mapStaleLine, type MapStale } from "../runtime/map-stale.ts";
 import { toolCwd } from "../runtime/paths.ts";
 
 export const name = "ix-impact";
@@ -77,6 +78,7 @@ export async function execute(
     atRiskBehaviors: impact.atRiskBehavior,
     subsystems,
     graph: impact.graph,
+    stale: mapStaleFromJson(impact),
   };
 
   // Ix withholds a risk level it cannot compute (a hollow or empty graph says
@@ -106,6 +108,11 @@ export async function execute(
       // while still printing the record.
       const callersOutput = await safeRun(["callers", params.target, "--limit", "20", "--format", "json"], dir);
       if (callersOutput === null) throw new Error("no output");
+      // A failed run prints an error record on stdout (`{"error": ...}`, exit
+      // non-zero). It has no `results`, and reading it as a result listed no
+      // callers instead of falling back.
+      const callersErr = parseIxError(callersOutput);
+      if (callersErr) throw new Error(callersErr.code);
       const parsed = JSON.parse(callersOutput) as { results?: { name?: string; path?: string }[] };
       callers = (parsed.results ?? []).map((c) => ({ name: c.name ?? "?", path: c.path }));
     } catch {
@@ -172,12 +179,15 @@ type ReportArgs = {
   callers: Caller[];
   subsystems: string[];
   graph?: { status?: string; message?: string; fix?: string };
+  /** Set when Ix said the architecture map is stale (`map_stale`, Ix#880). */
+  stale?: MapStale | null;
 };
 
 function formatReport(r: ReportArgs): string {
   const lines = [
     `## Impact: ${r.target}`,
     "",
+    ...(r.stale ? [mapStaleLine(r.stale), ""] : []),
     `**Risk level:** ${r.risk.toUpperCase()}`,
     `**Verdict:** ${r.verdict}`,
   ];

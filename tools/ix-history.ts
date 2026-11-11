@@ -113,6 +113,11 @@ export async function execute(
       try {
         const output = await safeRun(["decisions", "--topic", params.topic, "--format", "json"], dir);
         if (output === null) throw new Error("no output");
+        // A failed run prints an error record on stdout (`{"error": ...}`,
+        // exit non-zero). It has no `decisions`, and reading it as a result
+        // said "none" instead of falling back to the briefing's.
+        const decisionsErr = parseIxError(output);
+        if (decisionsErr) throw new Error(decisionsErr.code);
         const parsed = JSON.parse(output);
         sections.push(formatDecisions(parsed.decisions ?? []));
       } catch {

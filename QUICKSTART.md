@@ -168,7 +168,7 @@ Once installed, the plugin provides:
 | Tools | 17 | TypeScript functions OpenCode can call during any task |
 | Slash commands | 8 | Phased reasoning skills (`/ix-understand`, `/ix-investigate`, etc.) |
 | Agents | 5 | Specialized autonomous agents for exploration, debugging, refactoring, auditing |
-| Hooks | 2 | Post-edit graph refresh, stale-graph note on ix-* tool output |
+| Hooks | 1 | Post-edit graph refresh |
 | Context | 1 | `AGENTS.md` injected into every session as always-on guidance |
 
 ### All 17 tools
