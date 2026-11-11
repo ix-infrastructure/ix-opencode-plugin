@@ -31,11 +31,6 @@ import * as ixDecide from "../tools/ix-decide";
 import * as ixHealth from "../tools/ix-health";
 import * as ixSmells from "../tools/ix-smells";
 
-const IX_GRAPH_TOOLS = [
-  "ix-query", "ix-neighbors", "ix-impact", "ix-map", "ix-docs-tool",
-  "ix-locate", "ix-explain", "ix-rank", "ix-trace", "ix-smells",
-];
-
 // OpenCode's file-changing tools. edit/write/multiedit name the file
 // `filePath` (sst/opencode tool/edit.ts, write.ts); apply_patch carries a patch
 // and no single path.
@@ -265,13 +260,12 @@ export const server: Plugin = async ({ directory }) => {
         }
       }
 
-      // Stale graph detection: append warning when ix tools return stale signals
-      if (IX_GRAPH_TOOLS.includes(input.tool)) {
-        const result = output.output ?? "";
-        if (result.includes("stale") || result.includes("confidence < 0.7") || result.includes("run ix map")) {
-          output.output = result + "\n\n> [ix] Graph data may be stale — run `ix map` to refresh.";
-        }
-      }
+      // No stale-graph note here. A tool result is text, and the words
+      // "stale" or "ix map" turn up in it for other reasons (a path such as
+      // runtime/map-stale.ts, a symbol named isStale, Ix's own error guidance).
+      // Each tool that reads a region reader says the map is stale itself,
+      // from the `map_stale` field or `diagnostic code=map_stale` record Ix
+      // prints (runtime/map-stale.ts).
     },
   };
 };

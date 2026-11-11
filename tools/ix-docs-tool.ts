@@ -10,6 +10,7 @@
 
 import { safeRun } from "../runtime/cli.ts";
 import { formatIxError, parseIxError } from "../runtime/ix-error.ts";
+import { mapStaleFromJson, mapStaleLine, type MapStale } from "../runtime/map-stale.ts";
 import { toolCwd } from "../runtime/paths.ts";
 
 export const name = "ix-docs-tool";
@@ -97,6 +98,14 @@ export async function execute(
     `## Context: ${params.target}`,
     "",
   ];
+
+  // `ix overview` and `ix locate` read the map's regions and say when it is
+  // stale (Ix#880). One line under the heading, preferring the one that names
+  // the map the regions are from.
+  const overviewStale = overviewErr ? null : staleOf(overviewOut);
+  const locateStale = locateErr ? null : staleOf(locateOut);
+  const stale = [overviewStale, locateStale].find((s) => s?.regionsAsOf) ?? overviewStale ?? locateStale;
+  if (stale) sections.push(mapStaleLine(stale), "");
 
   // Stats: counts are objects (`nodes.total`), and files are one node kind.
   if (statsOut && !parseIxError(statsOut)) {
@@ -194,6 +203,16 @@ export async function execute(
   }
 
   return sections.join("\n");
+}
+
+/** What a JSON body said about the architecture map, when it said it is stale. */
+function staleOf(output: string | null): MapStale | null {
+  if (!output) return null;
+  try {
+    return mapStaleFromJson(JSON.parse(output));
+  } catch {
+    return null;
+  }
 }
 
 /** True when a locate/overview JSON body names the entity it resolved to. */

@@ -122,12 +122,11 @@ Agents are higher-level than slash commands — they operate autonomously over m
 
 ## Hook design
 
-`ix-plugin.ts` registers one handler, on `tool.execute.after`, which does two things:
+`ix-plugin.ts` registers one handler, on `tool.execute.after`:
 
 | Trigger | Behavior |
 |---|---|
 | edit, write, multiedit, apply_patch on a source file | Requests the guarded, debounced `ix map` of the repo root (`runtime/automap.ts`); not awaited |
-| ix graph-query tools (`IX_GRAPH_TOOLS`) | Appends a refresh note when the output signals a stale graph |
 
 The `tool.execute.before` hooks of the pre-1.4.2 format (`ix-pre-edit`, `ix-read`, `ix-intercept`) were dropped in the migration to the OpenCode v1.4.2 plugin format (f9ea81e). `ix-decide` remains as a tool the agent can call before an edit.
 
@@ -214,7 +213,7 @@ OpenCode V1 has no clean pre-task hidden context injection hook. The plugin uses
 
 1. **`AGENTS.md` via `instructions` field** — always-on, injected into every session. Covers behavioral rules, reasoning strategy, and reference tables.
 
-2. **`tool.execute.after` output** — the hook can append to a tool's output. It adds a refresh note to ix-* results that signal a stale graph.
+2. **`tool.execute.after`** — runs after each tool call; it requests the post-edit refresh. It does not edit ix-* results: a stale architecture map is reported by the tool itself, from the `map_stale` field or `diagnostic code=map_stale` record Ix prints (`runtime/map-stale.ts`), as one line under the tool's heading. Searching the result text for "stale" gave false notes on paths such as `runtime/map-stale.ts`.
 
 When OpenCode adds a proper pre-task hook, the briefing logic can move there. For now, `AGENTS.md` handles the always-on case and hooks handle the event-driven case.
 

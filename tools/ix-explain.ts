@@ -11,6 +11,7 @@
 import { runIx, failureDetail } from "../runtime/cli.ts";
 import { tryLlm } from "../runtime/llm.ts";
 import { formatIxError, parseIxError } from "../runtime/ix-error.ts";
+import { mapStaleFromJson, mapStaleLine, splitLlmMapStale } from "../runtime/map-stale.ts";
 import { toolCwd } from "../runtime/paths.ts";
 
 export const name = "ix-explain";
@@ -38,7 +39,12 @@ export async function execute(params: Params, context: Context): Promise<string>
   // accepted `--format llm` and rendered *text* — no error, exit 0 — so an
   // ungated call here would hand the model prose dressed as records.
   const fast = await tryLlm(["explain", params.symbol], dir);
-  if (fast) return `## ix-explain: ${params.symbol}\n\n${fast}`;
+  if (fast) {
+    // A stale map's `diagnostic code=map_stale` record becomes one line under
+    // the heading, as in ix-subsystems.
+    const { stale, body } = splitLlmMapStale(fast);
+    return [`## ix-explain: ${params.symbol}`, "", ...(stale ? [mapStaleLine(stale), ""] : []), body].join("\n");
+  }
 
   const run = await runIx(["explain", params.symbol, "--format", "json"], dir);
   if (!run?.stdout.trim()) return unavailable(params.symbol, failureDetail(run));
@@ -84,6 +90,8 @@ export async function execute(params: Params, context: Context): Promise<string>
   }
 
   const lines = [`## ix-explain: ${params.symbol}`, ""];
+  const stale = mapStaleFromJson(raw);
+  if (stale) lines.push(mapStaleLine(stale), "");
 
   if (target?.kind) lines.push(`**Kind:** ${target.kind}`);
   // `resolvedTarget` carries kind and name only; the path is under `facts`.
