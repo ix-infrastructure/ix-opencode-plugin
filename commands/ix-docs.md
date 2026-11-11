@@ -38,10 +38,16 @@ If `FULL=true` and more than 10 subsystems, auto-enable `SPLIT=true` unless `--s
 ix stats --format llm
 ix subsystems --format llm
 ix subsystems --list --format llm
-ix briefing --format llm 2>&1
 ```
 
-**Pro check:** If `ix briefing` returns JSON with a `revision` field, Pro is available. Extract `activeGoals`, `recentDecisions`, and `recentChanges` for **[Pro]** steps.
+**Pro check**, run on its own so that its answer without Pro is not read as a missing graph:
+```bash
+ix briefing --format json 2>/dev/null; echo "exit=$?"
+```
+Read the exit code, not the wording:
+- `exit=0` and a JSON object: Ix Pro is available. Use `activeGoals`, `recentDecisions`, and `recentChanges` from it in the **[Pro]** steps. A field may be empty or `null`.
+- non-zero exit and nothing else on stdout: Ix Pro is not installed. Without Pro, `ix` answers every Pro command with "requires Ix Pro" on stderr and exit 1. That is the normal answer, not an error: skip every **[Pro]** step and do not mention it.
+- non-zero exit and a JSON error record (`{"error": ..., "message": ...}`): Pro is installed but could not answer. Skip the **[Pro]** steps and say so in one line, quoting `message`.
 
 If `TARGET` is not obviously the whole repo:
 ```bash
@@ -124,7 +130,7 @@ Filter results by path prefix after retrieval if scoped to a subsystem.
 
 **[Pro]** If Pro is available and `recentDecisions` is non-empty:
 ```bash
-ix decisions --format llm
+ix decisions --format json
 ```
 
 **Skip for symbol-level or single-module targets.**
