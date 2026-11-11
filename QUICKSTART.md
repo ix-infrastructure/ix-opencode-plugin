@@ -33,14 +33,14 @@ cp -r /path/to/ix-opencode-plugin/tools      .opencode/ix-opencode-plugin/tools
 cp -r /path/to/ix-opencode-plugin/runtime    .opencode/ix-opencode-plugin/runtime
 cp -r /path/to/ix-opencode-plugin/commands/. .opencode/commands/
 cp -r /path/to/ix-opencode-plugin/agents/.   .opencode/agents/
-cp    /path/to/ix-opencode-plugin/AGENTS.md  .opencode/AGENTS.md
+cp    /path/to/ix-opencode-plugin/AGENTS.md  .opencode/ix-opencode-plugin/AGENTS.md
 ```
 
 Then add to your project's `opencode.json`:
 ```json
 {
   "plugin": [".opencode/ix-opencode-plugin/plugins/ix-plugin.ts"],
-  "instructions": [".opencode/AGENTS.md"]
+  "instructions": [".opencode/ix-opencode-plugin/AGENTS.md"]
 }
 ```
 
@@ -56,9 +56,10 @@ cp -r /path/to/ix-opencode-plugin/tools      ~/.config/opencode/ix-opencode-plug
 cp -r /path/to/ix-opencode-plugin/runtime    ~/.config/opencode/ix-opencode-plugin/runtime
 cp -r /path/to/ix-opencode-plugin/commands/. ~/.config/opencode/commands/
 cp -r /path/to/ix-opencode-plugin/agents/.   ~/.config/opencode/agents/
+cp    /path/to/ix-opencode-plugin/AGENTS.md  ~/.config/opencode/ix-opencode-plugin/AGENTS.md
 ```
 
-Add `"./ix-opencode-plugin/plugins/ix-plugin.ts"` to the `plugin` list in `~/.config/opencode/opencode.json`.
+Add `"./ix-opencode-plugin/plugins/ix-plugin.ts"` to the `plugin` list and `"./ix-opencode-plugin/AGENTS.md"` to the `instructions` list in `~/.config/opencode/opencode.json`.
 
 Append `AGENTS.md` content to your global `~/.config/opencode/AGENTS.md` (append or create).
 
