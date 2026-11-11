@@ -64,7 +64,7 @@ Identify if any third symbol depends on multiple targets (shared blast radius â€
 
 If Pro is available, check for existing plans and goals that overlap with this change:
 ```bash
-ix plans --format json
+ix plan list --format json
 ix goal list --format json
 ```
 
