@@ -4,7 +4,8 @@
  * ix-plugin.ts — OpenCode plugin entry point (v1.4.2 format)
  *
  * Exports `server` — the Plugin function that registers all 17 Ix tools
- * and the post-edit refresh / stale-graph hooks.
+ * and the post-edit refresh hook. Stale-map notes come from the tools
+ * themselves (runtime/map-stale.ts), not from a hook.
  */
 
 import { tool } from "@opencode-ai/plugin";
