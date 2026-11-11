@@ -29,6 +29,9 @@ Installs globally into `~/.config/opencode/` — active in every OpenCode sessio
 # installed before (it lists them in ix-opencode-plugin/install-manifest.txt).
 # If a file it would write already exists and is not one of its own, it stops
 # without changing anything. --force replaces those files too, and only those.
+# It writes only into real directories, never through a symlinked one. Copies
+# an earlier release left in .opencode/ (plugins/ix-plugin.ts, runtime/,
+# AGENTS.md) are removed if they match this version and listed if they don't.
 curl -fsSL https://raw.githubusercontent.com/ix-infrastructure/ix-opencode-plugin/main/install.sh | bash -s -- --force
 
 # Per-project install — copies plugin files into .opencode/ in the current directory

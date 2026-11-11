@@ -164,19 +164,70 @@ plan_files() {
   done
 }
 
-# Paths listed in a manifest file (comments dropped).
-manifest_paths() {
-  if [[ -f "$1" ]]; then
-    grep -v '^#' "$1" | grep -v '^$' || true
+# True when a manifest line names a path the installer may act on: relative,
+# no empty, "." or ".." segment, not starting with "-", inside one of the
+# directories it installs into (ix-opencode-plugin/, commands/, agents/), with
+# no symlinked directory on the way and its parent resolving inside <base>.
+valid_manifest_path() {
+  local base="$1" rel="${2%/}" parent="" real_base real_parent i n
+  local -a parts
+  [[ -n "$rel" && "$rel" != /* && "$rel" != -* && "$rel" != */ && "$rel" != *\\* ]] || return 1
+  case "$rel" in
+    "$PLUGIN_SUBDIR" | "$PLUGIN_SUBDIR"/* | commands | commands/* | agents | agents/*) ;;
+    *) return 1 ;;
+  esac
+  IFS=/ read -r -a parts <<< "$rel"
+  n=${#parts[@]}
+  for ((i = 0; i < n; i++)); do
+    case "${parts[$i]}" in "" | . | ..) return 1 ;; esac
+    if ((i < n - 1)); then
+      parent="${parent:+$parent/}${parts[$i]}"
+      [[ ! -L "$base/$parent" ]] || return 1
+    fi
+  done
+  if [[ -n "$parent" && -d "$base/$parent" ]]; then
+    real_base="$(cd -P "$base" && pwd -P)" || return 1
+    real_parent="$(cd -P "$base/$parent" && pwd -P)" || return 1
+    [[ "$real_parent" == "$real_base"/* ]] || return 1
   fi
+  return 0
 }
 
-# True when <rel> belongs to the plugin: listed in the manifest, or inside the
-# plugin's own ix-opencode-plugin/ directory.
-is_owned() {
-  local rel="$1" manifest="$2"
-  [[ "$rel" == "$PLUGIN_SUBDIR/"* ]] && return 0
-  [[ -f "$manifest" ]] && grep -Fxq -- "$rel" "$manifest"
+# The manifest's valid entries (see valid_manifest_path), one per line. Any
+# other line is skipped with a warning on stderr.
+manifest_paths() {
+  local base="$1" manifest="$2" line
+  [[ -f "$manifest" && ! -L "$manifest" ]] || return 0
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    [[ -n "$line" && "$line" != \#* ]] || continue
+    if valid_manifest_path "$base" "$line"; then
+      printf '%s\n' "$line"
+    else
+      echo "  ⚠ Ignoring invalid manifest entry: $line" >&2
+    fi
+  done < "$manifest"
+}
+
+# Refuse to write through a symlinked directory: every directory the plugin
+# installs into must be a real one (or not exist yet).
+check_no_symlinked_dirs() {
+  local base="$1" dests="$2" rel dir checked=""
+  while IFS= read -r rel; do
+    dir="$(dirname "$rel")"
+    while [[ "$dir" != "." ]]; do
+      if [[ "$checked" != *$'\n'"$dir"$'\n'* ]]; then
+        checked="$checked"$'\n'"$dir"$'\n'
+        if [[ -L "$base/$dir" ]]; then
+          if $DRY_RUN; then
+            fmt_warn "$base/$dir is a symbolic link; a real install would stop here."
+          else
+            fmt_err "$base/$dir is a symbolic link. The installer writes only into real directories; replace it with a directory and re-run."
+          fi
+        fi
+      fi
+      dir="$(dirname "$dir")"
+    done
+  done <<< "$dests"
 }
 
 # True when <dest> already is what an install would put there.
@@ -189,44 +240,69 @@ is_current() {
   fi
 }
 
-# Create <base>/<reldir> one level at a time, appending each directory this
-# call creates to CREATED_DIRS (as "<rel>/").
+# Write the manifest: a header, then the given lines sorted and de-duplicated.
+write_manifest() {
+  local manifest="$1" lines="$2"
+  if $DRY_RUN; then
+    echo "    [dry-run] write $manifest"
+    return
+  fi
+  {
+    echo "# Written by the ix-opencode-plugin installer. Paths are relative to the"
+    echo "# directory that holds $PLUGIN_SUBDIR/. --uninstall removes exactly these"
+    echo "# (a directory only if it is empty)."
+    printf '%s\n' "$lines" | grep -v '^$' | LC_ALL=C sort -u
+  } > "$manifest.tmp"
+  mv -f "$manifest.tmp" "$manifest"
+}
+
+# Create <base>/<reldir> one level at a time. Each directory this creates is
+# added to CREATED_DIRS and, unless this is a dry run, to the manifest at
+# once, so a run that fails part-way still leaves a complete record.
 ensure_dir() {
-  local base="$1" reldir="$2" part path=""
+  local base="$1" reldir="$2" manifest="$3" part path=""
   local -a parts
   IFS=/ read -r -a parts <<< "$reldir"
   for part in "${parts[@]}"; do
-    [[ -n "$part" ]] || continue
+    [[ -n "$part" && "$part" != "." ]] || continue
     path="${path:+$path/}$part"
     if [[ ! -d "$base/$path" ]]; then
       run mkdir "$base/$path"
       CREATED_DIRS="$CREATED_DIRS$path/"$'\n'
+      if ! $DRY_RUN && [[ -f "$manifest" ]]; then
+        printf '%s/\n' "$path" >> "$manifest"
+      fi
     fi
   done
 }
 
 # Install the plugin into an OpenCode directory, file by file.
 #
-# Without --force, an existing file is replaced only when the plugin owns it
-# (see is_owned) or it already has the plugin's content. Any other file of the
-# same name stops the install before anything is changed. --force replaces
-# those files too -- only those files. A directory is never removed.
+# Without --force, an existing file is replaced only when the manifest lists
+# it, it sits in the plugin's own ix-opencode-plugin/ directory, or it already
+# has the plugin's content. Any other file of the same name stops the install
+# before anything is changed. --force replaces those files too -- only those
+# files. A directory is never removed, and nothing is written through a
+# symlinked directory.
 install_into() {
   local base="$1" manifest="$1/$MANIFEST_REL"
-  local plan dests src rel dest conflicts="" n=0 replaced=0 rel_old new_manifest
+  local plan dests owned src rel dest conflicts="" n=0 replaced=0 rel_old final
   CREATED_DIRS=""
 
   plan="$(plan_files)"
   [[ -n "$plan" ]] || fmt_err "No plugin files found in $SOURCE_DIR"
   dests="$(printf '%s\n' "$plan" | cut -f2)"
 
+  check_no_symlinked_dirs "$base" "$dests"
+  owned="$(manifest_paths "$base" "$manifest")"
+
   while IFS=$'\t' read -r src rel; do
     dest="$base/$rel"
     if [[ -d "$dest" && ! -L "$dest" ]]; then
       fmt_err "$dest is a directory, where the plugin installs a file. Move it and re-run."
     fi
-    if [[ -e "$dest" || -L "$dest" ]] && ! is_owned "$rel" "$manifest" \
-        && ! cmp -s "$src" "$dest" 2>/dev/null; then
+    if [[ -e "$dest" || -L "$dest" ]] && [[ "$rel" != "$PLUGIN_SUBDIR/"* ]] \
+        && ! grep -Fxq -- "$rel" <<< "$owned" && ! cmp -s "$src" "$dest" 2>/dev/null; then
       conflicts="$conflicts$rel"$'\n'
     fi
   done <<< "$plan"
@@ -242,10 +318,14 @@ install_into() {
     fi
   fi
 
+  # Record what this run is about to write before writing any of it.
   run mkdir -p "$base"
+  ensure_dir "$base" "$PLUGIN_SUBDIR" "$manifest"
+  write_manifest "$manifest" "$owned"$'\n'"$dests"$'\n'"$CREATED_DIRS"
+
   while IFS=$'\t' read -r src rel; do
     dest="$base/$rel"
-    ensure_dir "$base" "$(dirname "$rel")"
+    ensure_dir "$base" "$(dirname "$rel")" "$manifest"
     if [[ -e "$dest" || -L "$dest" ]]; then
       if is_current "$src" "$dest"; then
         continue
@@ -262,33 +342,19 @@ install_into() {
   done <<< "$plan"
 
   # Files an earlier version installed that this one no longer ships.
+  final="$dests"
   while IFS= read -r rel_old; do
-    [[ -n "$rel_old" && "$rel_old" != */ ]] || continue
-    if ! grep -Fxq -- "$rel_old" <<< "$dests"; then
+    [[ -n "$rel_old" ]] || continue
+    if [[ "$rel_old" == */ ]]; then
+      final="$final"$'\n'"$rel_old"
+    elif ! grep -Fxq -- "$rel_old" <<< "$dests"; then
       if [[ -L "$base/$rel_old" || -f "$base/$rel_old" ]]; then
         run rm -f "$base/$rel_old"
         fmt_ok "Removed $rel_old (no longer part of the plugin)"
       fi
     fi
-  done <<< "$(manifest_paths "$manifest")"
-
-  new_manifest="$(
-    {
-      printf '%s\n' "$dests"
-      manifest_paths "$manifest" | grep '/$' || true
-      printf '%s' "$CREATED_DIRS"
-    } | grep -v '^$' | LC_ALL=C sort -u
-  )"
-  if $DRY_RUN; then
-    echo "    [dry-run] write $manifest"
-  else
-    {
-      echo "# Written by the ix-opencode-plugin installer. Paths are relative to the"
-      echo "# directory that holds $PLUGIN_SUBDIR/. --uninstall removes exactly these"
-      echo "# (a directory only if it is empty)."
-      printf '%s\n' "$new_manifest"
-    } > "$manifest"
-  fi
+  done <<< "$owned"
+  write_manifest "$manifest" "$final"$'\n'"$CREATED_DIRS"
 
   fmt_ok "$(grep -c . <<< "$dests") plugin files in place ($n written, $replaced replaced)"
 }
@@ -301,7 +367,7 @@ uninstall_from() {
     fmt_warn "No install manifest at $manifest -- nothing to remove there."
     return
   fi
-  paths="$(manifest_paths "$manifest")"
+  paths="$(manifest_paths "$base" "$manifest")"
   while IFS= read -r rel; do
     [[ -n "$rel" && "$rel" != */ ]] || continue
     if [[ -L "$base/$rel" || -f "$base/$rel" ]]; then
@@ -312,11 +378,42 @@ uninstall_from() {
   run rm -f "$manifest"
   while IFS= read -r rel; do
     [[ -n "$rel" ]] || continue
-    if [[ -d "$base/$rel" ]]; then
+    if [[ -d "$base/$rel" && ! -L "$base/${rel%/}" ]]; then
       run rmdir "$base/$rel" 2>/dev/null || fmt_info "Kept $base/$rel (not empty)"
     fi
   done <<< "$(printf '%s\n' "$paths" | grep '/$' | LC_ALL=C sort -r)"
   fmt_ok "Removed $n plugin files from $base"
+}
+
+# Earlier --project installs copied the entry point to plugins/ix-plugin.ts,
+# runtime/*.ts beside it and AGENTS.md into .opencode/. Remove each copy that
+# is byte-identical to this version's file; list the rest, which may be the
+# project's own or an older version's, for the user to check.
+remove_legacy_copies() {
+  local base="$1" pair src rel kept="" f
+  local -a pairs=("plugins/ix-plugin.ts:$LEGACY_ENTRY" "AGENTS.md:$LEGACY_AGENTS")
+  if [[ -d "$SOURCE_DIR/runtime" ]]; then
+    while IFS= read -r f; do
+      pairs+=("runtime/$f:runtime/$f")
+    done <<< "$(cd "$SOURCE_DIR/runtime" && find . -type f ! -name '.*' | sed 's|^\./||' | LC_ALL=C sort)"
+  fi
+  [[ ! -L "$base/plugins" && ! -L "$base/runtime" ]] || return 0
+  for pair in "${pairs[@]}"; do
+    src="$SOURCE_DIR/${pair%%:*}"
+    rel="${pair#*:}"
+    [[ -f "$base/$rel" && ! -L "$base/$rel" ]] || continue
+    if cmp -s "$src" "$base/$rel"; then
+      run rm -f "$base/$rel"
+      fmt_ok "Removed old copy $rel"
+    else
+      kept="$kept$rel"$'\n'
+    fi
+  done
+  if [[ -n "$kept" ]]; then
+    fmt_warn "These files are where an earlier install put the plugin, but differ from this version:"
+    printf '%s' "$kept" | while IFS= read -r rel; do fmt_info "$base/$rel"; done
+    fmt_info "If they are old plugin copies, delete them by hand (OpenCode loads every file in plugins/)."
+  fi
 }
 
 # Earlier releases linked whole directories and AGENTS.md into the global
@@ -357,7 +454,7 @@ update_opencode_json() {
   local status=0 result
   if command -v python3 &>/dev/null; then
     result="$(DRY_RUN="$DRY_RUN" python3 - "$path" "$action" "$plugin_entry" "$agents_entry" "$@" <<'PYEOF'
-import json, os, sys
+import json, os, shutil, sys, tempfile
 path, action, plugin_entry, agents_entry, *drop = sys.argv[1:]
 try:
   with open(path) as f:
@@ -365,22 +462,40 @@ try:
 except (OSError, ValueError) as e:
   print(f"could not read {path} as JSON ({e})")
   sys.exit(3)
+if not isinstance(cfg, dict):
+  print(f"{path} does not hold a JSON object")
+  sys.exit(3)
 before = json.dumps(cfg, sort_keys=True)
+skipped = []
 for key, entry in (("plugin", plugin_entry), ("instructions", agents_entry)):
-  if key not in cfg and action != "add":
+  if key not in cfg:
+    if action == "add":
+      cfg[key] = [entry]
     continue
-  values = [v for v in cfg.get(key, []) if v not in drop and (action == "add" or v != entry)]
+  if not isinstance(cfg[key], list):
+    skipped.append(key)
+    continue
+  values = [v for v in cfg[key] if v not in drop and (action == "add" or v != entry)]
   if action == "add" and entry not in values:
     values.append(entry)
   cfg[key] = values
-if json.dumps(cfg, sort_keys=True) == before:
-  print("unchanged")
-  sys.exit(0)
-if os.environ.get("DRY_RUN") != "true":
-  with open(path, "w") as f:
-    json.dump(cfg, f, indent=2)
-    f.write("\n")
-print("updated")
+changed = json.dumps(cfg, sort_keys=True) != before
+if changed and os.environ.get("DRY_RUN") != "true":
+  fd, tmp = tempfile.mkstemp(dir=os.path.dirname(os.path.abspath(path)), prefix=".opencode.json.")
+  try:
+    with os.fdopen(fd, "w") as f:
+      json.dump(cfg, f, indent=2)
+      f.write("\n")
+    shutil.copymode(path, tmp)
+    os.replace(tmp, path)
+  except BaseException:
+    os.unlink(tmp)
+    raise
+if skipped:
+  names = '" and "'.join(skipped)
+  print('"%s" in %s is not a list, so it was left alone' % (names, path))
+  sys.exit(4)
+print("updated" if changed else "unchanged")
 PYEOF
 )" || status=$?
   else
@@ -388,18 +503,22 @@ PYEOF
     status=3
   fi
 
-  if [[ $status -eq 0 ]]; then
+  if [[ $status -eq 4 ]]; then
+    # Some keys were not lists; the rest was still updated.
+    fmt_warn "$result -- edit it by hand:"
+    fmt_info "  \"plugin\" should list \"$plugin_entry\" and \"instructions\" \"$agents_entry\" (or neither, after an uninstall)"
+  elif [[ $status -eq 0 ]]; then
     if [[ "$result" == "updated" ]]; then
       if $DRY_RUN; then fmt_info "[dry-run] update $path"; else fmt_ok "Updated $path"; fi
     else
       fmt_ok "$path already up to date"
     fi
   elif [[ "$action" == "add" ]]; then
-    fmt_warn "$result -- edit $path by hand:"
+    fmt_warn "${result:-could not update $path} -- edit $path by hand:"
     fmt_info "  add \"$plugin_entry\" to \"plugin\" and \"$agents_entry\" to \"instructions\""
     [[ $# -eq 0 ]] || fmt_info "  remove any of: $*"
   else
-    fmt_warn "$result -- remove \"$plugin_entry\" and \"$agents_entry\" from $path by hand"
+    fmt_warn "${result:-could not update $path} -- remove \"$plugin_entry\" and \"$agents_entry\" from $path by hand"
   fi
 }
 
@@ -490,10 +609,16 @@ if $UNINSTALL; then
   fmt_step "Uninstalling from $OPENCODE_DIR"
   if [[ "$INSTALL_MODE" == "global" ]]; then
     remove_legacy_links
+  else
+    remove_legacy_copies "$OPENCODE_DIR"
   fi
   uninstall_from "$OPENCODE_DIR"
+  DROP=("$ENTRY_PREFIX$LEGACY_ENTRY")
+  if [[ ! -e "$OPENCODE_DIR/$LEGACY_AGENTS" ]]; then
+    DROP+=("$ENTRY_PREFIX$LEGACY_AGENTS")
+  fi
   update_opencode_json "$CONFIG_FILE" remove \
-    "$ENTRY_PREFIX$PLUGIN_ENTRY" "$ENTRY_PREFIX$AGENTS_ENTRY" "$ENTRY_PREFIX$LEGACY_ENTRY"
+    "$ENTRY_PREFIX$PLUGIN_ENTRY" "$ENTRY_PREFIX$AGENTS_ENTRY" "${DROP[@]}"
   echo
   fmt_ok "Uninstall complete"
   exit 0
@@ -509,6 +634,9 @@ else
 fi
 
 install_into "$OPENCODE_DIR"
+if [[ "$INSTALL_MODE" == "project" ]]; then
+  remove_legacy_copies "$OPENCODE_DIR"
+fi
 
 # Earlier releases registered <dir>/plugins/ix-plugin.ts and <dir>/AGENTS.md.
 # Drop the first; drop the second only once no file is there any more.
@@ -518,14 +646,6 @@ if [[ ! -e "$OPENCODE_DIR/$LEGACY_AGENTS" ]]; then
 fi
 update_opencode_json "$CONFIG_FILE" add \
   "$ENTRY_PREFIX$PLUGIN_ENTRY" "$ENTRY_PREFIX$AGENTS_ENTRY" "${DROP[@]}"
-
-# Earlier --project installs copied the entry point to .opencode/plugins/, the
-# runtime to .opencode/runtime/ and AGENTS.md to .opencode/AGENTS.md. Those
-# copies cannot be told apart from the project's own files, so they stay.
-if [[ "$INSTALL_MODE" == "project" && -f "$OPENCODE_DIR/$LEGACY_ENTRY" ]]; then
-  fmt_warn "An earlier install left .opencode/$LEGACY_ENTRY, .opencode/runtime/ and .opencode/$LEGACY_AGENTS."
-  fmt_info "OpenCode loads every file in .opencode/plugins/; delete those copies by hand."
-fi
 
 # ── Done ──────────────────────────────────────────────────────────────────────
 

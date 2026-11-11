@@ -142,17 +142,72 @@ function Get-PluginFiles {
     }
 }
 
-# Paths listed in a manifest file (comments dropped).
-function Get-ManifestPaths([string]$Manifest) {
-    if (-not (Test-Path -LiteralPath $Manifest -PathType Leaf)) { return @() }
-    return @(Get-Content -LiteralPath $Manifest -Encoding UTF8 |
-        Where-Object { $_ -and -not $_.StartsWith("#") })
+# True when Path is a symbolic link or junction.
+function Test-Link([string]$Path) {
+    $item = Get-Item -LiteralPath $Path -Force -ErrorAction SilentlyContinue
+    return [bool]($item -and ($item.Attributes -band [IO.FileAttributes]::ReparsePoint))
 }
 
-# True when Rel belongs to the plugin: listed in the manifest, or inside the
-# plugin's own ix-opencode-plugin\ directory.
-function Test-Owned([string]$Rel, [string[]]$Owned) {
-    return $Rel.StartsWith("$PLUGIN_SUBDIR/") -or ($Owned -contains $Rel)
+# True when a manifest line names a path the installer may act on: relative,
+# no empty, "." or ".." segment, not starting with "-", inside one of the
+# directories it installs into (ix-opencode-plugin/, commands/, agents/), with
+# no linked directory on the way and its parent resolving inside Base.
+function Test-ValidManifestPath([string]$Base, [string]$Line) {
+    $rel = if ($Line.EndsWith("/")) { $Line.Substring(0, $Line.Length - 1) } else { $Line }
+    if (-not $rel -or $rel.StartsWith("-") -or $rel.EndsWith("/") -or $rel.Contains("\") -or
+        $rel.Contains(":") -or $rel.StartsWith("/")) { return $false }
+    $parts = $rel.Split("/")
+    if (@("ix-opencode-plugin", "commands", "agents") -notcontains $parts[0]) { return $false }
+    $parent = ""
+    for ($i = 0; $i -lt $parts.Count; $i++) {
+        if (@("", ".", "..") -contains $parts[$i]) { return $false }
+        if ($i -lt $parts.Count - 1) {
+            $parent = if ($parent) { "$parent/$($parts[$i])" } else { $parts[$i] }
+            if (Test-Link (Join-Path $Base $parent)) { return $false }
+        }
+    }
+    if ($parent -and (Test-Path -LiteralPath (Join-Path $Base $parent) -PathType Container)) {
+        $realBase = (Resolve-Path -LiteralPath $Base).ProviderPath.TrimEnd('\', '/')
+        $realParent = (Resolve-Path -LiteralPath (Join-Path $Base $parent)).ProviderPath
+        if (-not $realParent.StartsWith($realBase + [IO.Path]::DirectorySeparatorChar)) { return $false }
+    }
+    return $true
+}
+
+# The manifest's valid entries (see Test-ValidManifestPath). Any other line is
+# skipped with a warning.
+function Get-ManifestPaths([string]$Base, [string]$Manifest) {
+    if (-not (Test-Path -LiteralPath $Manifest -PathType Leaf) -or (Test-Link $Manifest)) { return @() }
+    $valid = @()
+    foreach ($line in @(Get-Content -LiteralPath $Manifest -Encoding UTF8)) {
+        if (-not $line -or $line.StartsWith("#")) { continue }
+        if (Test-ValidManifestPath $Base $line) { $valid += $line }
+        else { Write-Warn "Ignoring invalid manifest entry: $line" }
+    }
+    return $valid
+}
+
+# Refuse to write through a linked directory: every directory the plugin
+# installs into must be a real one (or not exist yet).
+function Assert-NoLinkedDirs([string]$Base, [string[]]$Rels) {
+    $dirs = @{}
+    foreach ($rel in $Rels) {
+        $parts = $rel.Split("/")
+        $path = ""
+        for ($i = 0; $i -lt $parts.Count - 1; $i++) {
+            $path = if ($path) { "$path/$($parts[$i])" } else { $parts[$i] }
+            $dirs[$path] = $true
+        }
+    }
+    foreach ($dir in $dirs.Keys) {
+        if (Test-Link (Join-Path $Base $dir)) {
+            if ($DryRun) {
+                Write-Warn "$(Join-Path $Base $dir) is a link; a real install would stop here."
+            } else {
+                Write-Err "$(Join-Path $Base $dir) is a link. The installer writes only into real directories; replace it with a directory and re-run."
+            }
+        }
+    }
 }
 
 function Test-SameContent([string]$A, [string]$B) {
@@ -160,17 +215,55 @@ function Test-SameContent([string]$A, [string]$B) {
     return (Get-FileHash -LiteralPath $A).Hash -eq (Get-FileHash -LiteralPath $B).Hash
 }
 
+# Write the manifest: a header, then the given lines sorted and de-duplicated.
+function Write-Manifest([string]$Manifest, [string[]]$Lines) {
+    $all = @(
+        "# Written by the ix-opencode-plugin installer. Paths are relative to the"
+        "# directory that holds $PLUGIN_SUBDIR/. -Uninstall removes exactly these"
+        "# (a directory only if it is empty)."
+    ) + @($Lines | Where-Object { $_ } | Sort-Object -Unique)
+    Invoke-Step "write $Manifest" {
+        $tmp = "$Manifest.tmp"
+        $all | Set-Content -LiteralPath $tmp -Encoding UTF8
+        Move-Item -LiteralPath $tmp -Destination $Manifest -Force
+    }
+}
+
+# Create Base/RelDir one level at a time. Each directory this creates is added
+# to $script:Created and, unless this is a dry run, to the manifest at once,
+# so a run that fails part-way still leaves a complete record.
+function New-OwnedDir([string]$Base, [string]$RelDir, [string]$Manifest) {
+    $path = ""
+    foreach ($part in $RelDir.Split("/")) {
+        if (-not $part -or $part -eq ".") { continue }
+        $path = if ($path) { "$path/$part" } else { $part }
+        $dir = Join-Path $Base $path
+        if (-not (Test-Path -LiteralPath $dir -PathType Container)) {
+            Invoke-Step "mkdir $dir" { New-Item -ItemType Directory -Path $dir | Out-Null }
+            $script:Created += "$path/"
+            if (-not $DryRun -and (Test-Path -LiteralPath $Manifest -PathType Leaf)) {
+                Add-Content -LiteralPath $Manifest -Value "$path/" -Encoding UTF8
+            }
+        }
+    }
+}
+
 # Install the plugin into an OpenCode directory, file by file.
 #
-# Without -Force, an existing file is replaced only when the plugin owns it
-# (see Test-Owned) or it already has the plugin's content. Any other file of
-# the same name stops the install before anything is changed. -Force replaces
-# those files too -- only those files. A directory is never removed.
+# Without -Force, an existing file is replaced only when the manifest lists
+# it, it sits in the plugin's own ix-opencode-plugin\ directory, or it already
+# has the plugin's content. Any other file of the same name stops the install
+# before anything is changed. -Force replaces those files too -- only those
+# files. A directory is never removed, and nothing is written through a
+# linked directory.
 function Install-Into([string]$Base) {
     $manifest = Join-Path $Base $MANIFEST_REL
-    $owned = @(Get-ManifestPaths $manifest)
     $plan = @(Get-PluginFiles)
     if ($plan.Count -eq 0) { Write-Err "No plugin files found in $SourceDir" }
+    $rels = @($plan | ForEach-Object { $_.Rel })
+
+    Assert-NoLinkedDirs $Base $rels
+    $owned = @(Get-ManifestPaths $Base $manifest)
 
     $conflicts = @()
     foreach ($f in $plan) {
@@ -178,8 +271,8 @@ function Install-Into([string]$Base) {
         if (Test-Path -LiteralPath $dest -PathType Container) {
             Write-Err "$dest is a directory, where the plugin installs a file. Move it and re-run."
         }
-        if ((Test-Path -LiteralPath $dest) -and -not (Test-Owned $f.Rel $owned) -and
-            -not (Test-SameContent $f.Src $dest)) {
+        if ((Test-Path -LiteralPath $dest) -and -not $f.Rel.StartsWith("$PLUGIN_SUBDIR/") -and
+            ($owned -notcontains $f.Rel) -and -not (Test-SameContent $f.Src $dest)) {
             $conflicts += $f.Rel
         }
     }
@@ -195,31 +288,24 @@ function Install-Into([string]$Base) {
         }
     }
 
+    # Record what this run is about to write before writing any of it.
     if (-not (Test-Path -LiteralPath $Base)) {
         Invoke-Step "mkdir $Base" { New-Item -ItemType Directory -Force -Path $Base | Out-Null }
     }
-    $created = @()
+    $script:Created = @()
+    New-OwnedDir $Base $PLUGIN_SUBDIR $manifest
+    Write-Manifest $manifest (@($owned) + $rels + $script:Created)
+
     $written = 0
     foreach ($f in $plan) {
         $dest = Join-Path $Base $f.Rel
-        # Create missing parent directories one level at a time, recording each.
-        $parts = $f.Rel.Split("/")
-        $path = ""
-        for ($i = 0; $i -lt $parts.Count - 1; $i++) {
-            $path = if ($path) { "$path/$($parts[$i])" } else { $parts[$i] }
-            $dir = Join-Path $Base $path
-            if (-not (Test-Path -LiteralPath $dir -PathType Container)) {
-                Invoke-Step "mkdir $dir" { New-Item -ItemType Directory -Path $dir | Out-Null }
-                $created += "$path/"
-            }
-        }
+        New-OwnedDir $Base ($f.Rel.Substring(0, [Math]::Max(0, $f.Rel.LastIndexOf("/")))) $manifest
         if (Test-SameContent $f.Src $dest) { continue }
         Invoke-Step "copy $($f.Rel)" { Copy-Item -LiteralPath $f.Src -Destination $dest -Force }
         $written++
     }
 
     # Files an earlier version installed that this one no longer ships.
-    $rels = @($plan | ForEach-Object { $_.Rel })
     foreach ($old in $owned) {
         if ($old.EndsWith("/") -or ($rels -contains $old)) { continue }
         $oldPath = Join-Path $Base $old
@@ -229,13 +315,8 @@ function Install-Into([string]$Base) {
         }
     }
 
-    $dirs = @($owned | Where-Object { $_.EndsWith("/") }) + $created
-    $lines = @(
-        "# Written by the ix-opencode-plugin installer. Paths are relative to the"
-        "# directory that holds $PLUGIN_SUBDIR/. -Uninstall removes exactly these"
-        "# (a directory only if it is empty)."
-    ) + @($rels + $dirs | Sort-Object -Unique)
-    Invoke-Step "write $manifest" { $lines | Set-Content -LiteralPath $manifest -Encoding UTF8 }
+    $dirs = @($owned | Where-Object { $_.EndsWith("/") }) + $script:Created
+    Write-Manifest $manifest ($rels + $dirs)
     Write-Ok "$($plan.Count) plugin files in place ($written written)"
 }
 
@@ -247,7 +328,7 @@ function Uninstall-From([string]$Base) {
         Write-Warn "No install manifest at $manifest -- nothing to remove there."
         return
     }
-    $paths = @(Get-ManifestPaths $manifest)
+    $paths = @(Get-ManifestPaths $Base $manifest)
     $n = 0
     foreach ($rel in $paths) {
         if ($rel.EndsWith("/")) { continue }
@@ -260,7 +341,7 @@ function Uninstall-From([string]$Base) {
     Invoke-Step "Remove $manifest" { Remove-Item -LiteralPath $manifest -Force }
     foreach ($rel in @($paths | Where-Object { $_.EndsWith("/") } | Sort-Object -Descending)) {
         $dir = Join-Path $Base $rel.TrimEnd("/")
-        if (-not (Test-Path -LiteralPath $dir -PathType Container)) { continue }
+        if (-not (Test-Path -LiteralPath $dir -PathType Container) -or (Test-Link $dir)) { continue }
         if (@(Get-ChildItem -LiteralPath $dir -Force).Count -eq 0) {
             Invoke-Step "Remove $rel" { Remove-Item -LiteralPath $dir -Force }
         } else {
@@ -270,19 +351,56 @@ function Uninstall-From([string]$Base) {
     Write-Ok "Removed $n plugin files from $Base"
 }
 
-# Earlier releases copied the entry point to plugins\ix-plugin.ts, the runtime
-# to runtime\ and AGENTS.md beside them. Those copies cannot be told apart from
-# the user's own files, so they are left in place with a warning.
-function Write-LegacyWarning([string]$Dir) {
-    if (Test-Path -LiteralPath (Join-Path $Dir "plugins\ix-plugin.ts")) {
-        Write-Warn "An earlier install left plugins\ix-plugin.ts, runtime\ and AGENTS.md in $Dir."
-        Write-Info "OpenCode loads every file in plugins\; delete those copies by hand."
+# Earlier releases copied the entry point to plugins\ix-plugin.ts, runtime\*.ts
+# beside it and AGENTS.md into the OpenCode directory. Remove each copy that is
+# byte-identical to this version's file; list the rest, which may be the
+# user's own or an older version's, for the user to check.
+function Remove-LegacyCopies([string]$Dir) {
+    if ((Test-Link (Join-Path $Dir "plugins")) -or (Test-Link (Join-Path $Dir "runtime"))) { return }
+    $pairs = @(
+        @{ Src = Join-Path $SourceDir "plugins\ix-plugin.ts"; Rel = $LEGACY_ENTRY }
+        @{ Src = Join-Path $SourceDir "AGENTS.md"; Rel = $LEGACY_AGENTS }
+    )
+    $runtime = Join-Path $SourceDir "runtime"
+    if (Test-Path -LiteralPath $runtime -PathType Container) {
+        foreach ($f in @(Get-ChildItem -LiteralPath $runtime -File | Where-Object { -not $_.Name.StartsWith(".") })) {
+            $pairs += @{ Src = $f.FullName; Rel = "runtime/$($f.Name)" }
+        }
+    }
+    $kept = @()
+    foreach ($p in $pairs) {
+        $dest = Join-Path $Dir $p.Rel
+        if (-not (Test-Path -LiteralPath $dest -PathType Leaf) -or (Test-Link $dest)) { continue }
+        if (Test-SameContent $p.Src $dest) {
+            Invoke-Step "Remove old copy $($p.Rel)" { Remove-Item -LiteralPath $dest -Force }
+            Write-Ok "Removed old copy $($p.Rel)"
+        } else {
+            $kept += $dest
+        }
+    }
+    if ($kept.Count -gt 0) {
+        Write-Warn "These files are where an earlier install put the plugin, but differ from this version:"
+        foreach ($k in $kept) { Write-Info $k }
+        Write-Info "If they are old plugin copies, delete them by hand (OpenCode loads every file in plugins\)."
+    }
+}
+
+# Write a file through a temp file beside it, so a failed write never leaves
+# it half-written.
+function Set-ContentAtomic([string]$Path, [string]$Text) {
+    $tmp = Join-Path (Split-Path $Path -Parent) (".opencode.json." + [Guid]::NewGuid().ToString("N"))
+    try {
+        Set-Content -LiteralPath $tmp -Value $Text -Encoding UTF8
+        Move-Item -LiteralPath $tmp -Destination $Path -Force
+    } finally {
+        if (Test-Path -LiteralPath $tmp) { Remove-Item -LiteralPath $tmp -Force }
     }
 }
 
 # Add (or with -Action remove, take out) the plugin's opencode.json entries.
 # Entries in -Drop are taken out of both lists: the places earlier releases
-# registered. Everything else in the file is kept.
+# registered. Only keys that hold a list are changed; everything else in the
+# file is kept.
 function Update-OpencodeJson {
     param([string]$Path, [string]$Action, [string]$PluginEntry, [string]$AgentsEntry, [string[]]$Drop = @())
 
@@ -293,22 +411,25 @@ function Update-OpencodeJson {
             plugin       = @($PluginEntry)
             instructions = @($AgentsEntry)
         }
-        Invoke-Step "Create $Path" {
-            $json | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $Path -Encoding UTF8
-        }
+        Invoke-Step "Create $Path" { Set-ContentAtomic $Path ($json | ConvertTo-Json -Depth 5) }
         Write-Ok "Created $Path"
         return
     }
 
+    $problem = $null
     try {
         $cfg = Get-Content -LiteralPath $Path -Raw -Encoding UTF8 | ConvertFrom-Json
+        if ($cfg -isnot [pscustomobject]) { $problem = "$Path does not hold a JSON object" }
     } catch {
+        $problem = "Could not read $Path as JSON"
+    }
+    if ($problem) {
         if ($Action -eq "add") {
-            Write-Warn "Could not read $Path as JSON -- edit it by hand:"
+            Write-Warn "$problem -- edit it by hand:"
             Write-Info "  add `"$PluginEntry`" to `"plugin`" and `"$AgentsEntry`" to `"instructions`""
             if ($Drop.Count -gt 0) { Write-Info "  remove any of: $($Drop -join ', ')" }
         } else {
-            Write-Warn "Could not read $Path as JSON -- remove `"$PluginEntry`" and `"$AgentsEntry`" by hand"
+            Write-Warn "$problem -- remove `"$PluginEntry`" and `"$AgentsEntry`" by hand"
         }
         return
     }
@@ -316,23 +437,29 @@ function Update-OpencodeJson {
     $before = $cfg | ConvertTo-Json -Depth 20 -Compress
     $updated = [ordered]@{}
     foreach ($prop in $cfg.PSObject.Properties) { $updated[$prop.Name] = $prop.Value }
+    $skipped = @()
     foreach ($key in @("plugin", "instructions")) {
         $entry = if ($key -eq "plugin") { $PluginEntry } else { $AgentsEntry }
-        if (-not $updated.Contains($key) -and $Action -ne "add") { continue }
+        if (-not $updated.Contains($key)) {
+            if ($Action -eq "add") { $updated[$key] = @($entry) }
+            continue
+        }
+        if ($updated[$key] -isnot [array]) { $skipped += $key; continue }
         $values = @(@($updated[$key]) | Where-Object {
             $_ -and ($Drop -notcontains $_) -and ($Action -eq "add" -or $_ -ne $entry)
         })
         if ($Action -eq "add" -and $values -notcontains $entry) { $values += $entry }
         $updated[$key] = $values
     }
-    if (([pscustomobject]$updated | ConvertTo-Json -Depth 20 -Compress) -eq $before) {
+    if (([pscustomobject]$updated | ConvertTo-Json -Depth 20 -Compress) -ne $before) {
+        Invoke-Step "Update $Path" { Set-ContentAtomic $Path ($updated | ConvertTo-Json -Depth 20) }
+        Write-Ok "Updated $Path"
+    } else {
         Write-Ok "$Path already up to date"
-        return
     }
-    Invoke-Step "Update $Path" {
-        $updated | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath $Path -Encoding UTF8
+    if ($skipped.Count -gt 0) {
+        Write-Warn "`"$($skipped -join '" and "')`" in $Path is not a list, so it was left alone -- edit it by hand."
     }
-    Write-Ok "Updated $Path"
 }
 
 # ── Banner ────────────────────────────────────────────────────────────────────
@@ -436,9 +563,13 @@ if ($InstallMode -eq "global") {
 
 if ($Uninstall) {
     Write-Step "Uninstalling from $OpencodeDir"
+    Remove-LegacyCopies $OpencodeDir
     Uninstall-From $OpencodeDir
-    Update-OpencodeJson $ConfigFile "remove" "$EntryPrefix$PLUGIN_ENTRY" "$EntryPrefix$AGENTS_ENTRY" `
-        @("$EntryPrefix$LEGACY_ENTRY")
+    $drop = @("$EntryPrefix$LEGACY_ENTRY")
+    if (-not (Test-Path -LiteralPath (Join-Path $OpencodeDir $LEGACY_AGENTS))) {
+        $drop += "$EntryPrefix$LEGACY_AGENTS"
+    }
+    Update-OpencodeJson $ConfigFile "remove" "$EntryPrefix$PLUGIN_ENTRY" "$EntryPrefix$AGENTS_ENTRY" $drop
     Write-Host
     Write-Ok "Uninstall complete"
     exit 0
@@ -453,6 +584,7 @@ if ($InstallMode -eq "global") {
 }
 
 Install-Into $OpencodeDir
+Remove-LegacyCopies $OpencodeDir
 
 # Earlier releases registered <dir>/plugins/ix-plugin.ts and <dir>/AGENTS.md.
 # Drop the first; drop the second only once no file is there any more.
@@ -462,8 +594,6 @@ if (-not (Test-Path -LiteralPath (Join-Path $OpencodeDir $LEGACY_AGENTS))) {
     $drop += "$EntryPrefix$LEGACY_AGENTS"
 }
 Update-OpencodeJson $ConfigFile "add" "$EntryPrefix$PLUGIN_ENTRY" "$EntryPrefix$AGENTS_ENTRY" $drop
-
-Write-LegacyWarning $OpencodeDir
 
 # ── Done ──────────────────────────────────────────────────────────────────────
 
