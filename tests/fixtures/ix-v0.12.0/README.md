@@ -124,3 +124,9 @@ the captures they extend.
 built from `renderSmellsRunLlm` and the compact JSON in Ix's
 `ix-cli/src/cli/commands/smells.ts`. A real capture needs a detection run, which
 stores claims; the throwaway capture backend recorded only `--list` output.
+
+`synthetic/error-backend-unreachable.json` is the JSON error record a failing
+`--format json` run prints on stdout, exit 1, since Ix#1043 (on Ix `main`,
+not in a release yet): `{"error", "message", "next"}` from `emitErrorRecord`
+in Ix's `ix-cli/src/cli/errors.ts`, worded as its `backendUnreachableError` for
+the default endpoint. Not v0.12.0 output.

@@ -106,6 +106,11 @@ export async function execute(
       // while still printing the record.
       const callersOutput = await safeRun(["callers", params.target, "--limit", "20", "--format", "json"], dir);
       if (callersOutput === null) throw new Error("no output");
+      // A failed run prints an error record on stdout (`{"error": ...}`, exit
+      // non-zero). It has no `results`, and reading it as a result listed no
+      // callers instead of falling back.
+      const callersErr = parseIxError(callersOutput);
+      if (callersErr) throw new Error(callersErr.code);
       const parsed = JSON.parse(callersOutput) as { results?: { name?: string; path?: string }[] };
       callers = (parsed.results ?? []).map((c) => ({ name: c.name ?? "?", path: c.path }));
     } catch {
