@@ -26,6 +26,28 @@ $REPO_URL         = "https://github.com/ix-infrastructure/ix-opencode-plugin.git
 $DEFAULT_SOURCE   = Join-Path $env:LOCALAPPDATA "ix-opencode-plugin"
 $GLOBAL_CONFIG    = Join-Path $env:APPDATA "opencode"
 
+# Everything the plugin needs to load, as "<path in the plugin repo>:<path under
+# the OpenCode config directory>". Both install modes read this one list. It
+# must match INSTALL_ITEMS in install.sh; tests/install.test.ts checks that.
+#
+# The TypeScript lives under one ix-opencode-plugin\ directory, not in
+# plugins\ and tools\ at the top level: OpenCode loads every file in those two
+# as a standalone plugin or tool, and tools\*.ts here are modules of the one
+# plugin. The entry imports them as ../tools/*, so they stay side by side.
+$PLUGIN_SUBDIR = "ix-opencode-plugin"
+$PLUGIN_ENTRY  = "$PLUGIN_SUBDIR/plugins/ix-plugin.ts"
+$INSTALL_ITEMS = @(
+    "plugins:ix-opencode-plugin/plugins"
+    "tools:ix-opencode-plugin/tools"
+    "runtime:ix-opencode-plugin/runtime"
+    "commands:commands"
+    "agents:agents"
+    "AGENTS.md:AGENTS.md"
+)
+# Where releases before the list above put the entry point (relative to the
+# OpenCode directory). An install removes the opencode.json entry for it.
+$LEGACY_ENTRY = "plugins/ix-plugin.ts"
+
 # ── Help ──────────────────────────────────────────────────────────────────────
 
 if ($Help) {
@@ -88,6 +110,10 @@ function Invoke-Step {
 
 function Copy-ItemSafe {
     param([string]$Src, [string]$Dest, [string]$Label)
+    $parent = Split-Path $Dest -Parent
+    if (-not (Test-Path $parent)) {
+        Invoke-Step "mkdir $parent" { New-Item -ItemType Directory -Force -Path $parent | Out-Null }
+    }
     if (Test-Path $Dest) {
         if ($Force) {
             Invoke-Step "Remove existing $Label" { Remove-Item $Dest -Recurse -Force }
@@ -100,8 +126,19 @@ function Copy-ItemSafe {
     Write-Ok "Copied $Label"
 }
 
+# Earlier releases copied the entry point to plugins\ix-plugin.ts and the
+# runtime to runtime\. Those copies cannot be told apart from the user's own
+# files, so they are left in place with a warning.
+function Write-LegacyWarning {
+    param([string]$Dir, [string]$Label)
+    if (Test-Path (Join-Path $Dir "plugins\ix-plugin.ts")) {
+        Write-Warn "An earlier install left $Label (and runtime\ beside it)."
+        Write-Info "OpenCode loads every file in plugins\; delete that copy by hand."
+    }
+}
+
 function Merge-OpencodeJson {
-    param([string]$Path, [string]$PluginEntry, [string]$AgentsEntry)
+    param([string]$Path, [string]$PluginEntry, [string]$AgentsEntry, [string]$LegacyEntry)
 
     if (-not (Test-Path $Path)) {
         $json = [ordered]@{
@@ -117,7 +154,8 @@ function Merge-OpencodeJson {
     }
 
     $content = Get-Content $Path -Raw -Encoding UTF8
-    if ($content -match [regex]::Escape($PluginEntry)) {
+    if (($content -match [regex]::Escape("`"$PluginEntry`"")) -and
+        -not ($content -match [regex]::Escape("`"$LegacyEntry`""))) {
         if (-not $Force) {
             Write-Warn "Plugin already registered in $(Split-Path $Path -Leaf) — use -Force to re-add"
             return
@@ -128,7 +166,8 @@ function Merge-OpencodeJson {
         $cfg = $content | ConvertFrom-Json
 
         # Ensure plugin array exists and contains our entry
-        $plugins = @($cfg.plugin) | Where-Object { $_ }
+        # The entry point used to live at $LegacyEntry; drop that registration.
+        $plugins = @(@($cfg.plugin) | Where-Object { $_ -and $_ -ne $LegacyEntry })
         if ($plugins -notcontains $PluginEntry) { $plugins += $PluginEntry }
 
         # Ensure instructions array exists and contains our entry
@@ -237,12 +276,17 @@ Write-Ok "@opencode-ai/plugin ready"
 if ($Uninstall) {
     Write-Step "Uninstalling"
     if ($InstallMode -eq "global") {
-        foreach ($item in @("plugins", "commands", "agents", "runtime", "AGENTS.md")) {
+        foreach ($entry in $INSTALL_ITEMS) {
+            $item = $entry.Split(":", 2)[1]
             $dest = Join-Path $GLOBAL_CONFIG $item
             if (Test-Path $dest) {
                 Invoke-Step "Remove $item" { Remove-Item $dest -Recurse -Force }
                 Write-Ok "Removed $item"
             }
+        }
+        $pluginDir = Join-Path $GLOBAL_CONFIG $PLUGIN_SUBDIR
+        if ((Test-Path $pluginDir) -and -not (Get-ChildItem $pluginDir -Force)) {
+            Invoke-Step "Remove $PLUGIN_SUBDIR" { Remove-Item $pluginDir -Force }
         }
         Write-Warn "opencode.json not modified — remove plugin/instructions entries manually if needed"
     } else {
@@ -262,9 +306,10 @@ if ($InstallMode -eq "global") {
     Write-Step "Installing globally -> $GLOBAL_CONFIG"
     Invoke-Step "mkdir $GLOBAL_CONFIG" { New-Item -ItemType Directory -Force -Path $GLOBAL_CONFIG | Out-Null }
 
-    foreach ($item in @("plugins", "commands", "agents", "runtime", "AGENTS.md")) {
+    foreach ($entry in $INSTALL_ITEMS) {
+        $src, $item = $entry.Split(":", 2)
         Copy-ItemSafe `
-            (Join-Path $SourceDir $item) `
+            (Join-Path $SourceDir $src) `
             (Join-Path $GLOBAL_CONFIG $item) `
             $item
     }
@@ -272,8 +317,11 @@ if ($InstallMode -eq "global") {
     # Use forward slashes in opencode.json paths (OpenCode requires this)
     Merge-OpencodeJson `
         (Join-Path $GLOBAL_CONFIG "opencode.json") `
-        "./plugins/ix-plugin.ts" `
-        "./AGENTS.md"
+        "./$PLUGIN_ENTRY" `
+        "./AGENTS.md" `
+        "./$LEGACY_ENTRY"
+
+    Write-LegacyWarning $GLOBAL_CONFIG "plugins\ix-plugin.ts"
 
 # ── Install: per-project ──────────────────────────────────────────────────────
 
@@ -282,17 +330,21 @@ if ($InstallMode -eq "global") {
     Write-Step "Installing into project -> $DotOpencode"
     Invoke-Step "mkdir .opencode" { New-Item -ItemType Directory -Force -Path $DotOpencode | Out-Null }
 
-    foreach ($item in @("plugins", "commands", "agents", "runtime", "AGENTS.md")) {
+    foreach ($entry in $INSTALL_ITEMS) {
+        $src, $item = $entry.Split(":", 2)
         Copy-ItemSafe `
-            (Join-Path $SourceDir $item) `
+            (Join-Path $SourceDir $src) `
             (Join-Path $DotOpencode $item) `
             $item
     }
 
     Merge-OpencodeJson `
         (Join-Path $ProjectDir "opencode.json") `
-        ".opencode/plugins/ix-plugin.ts" `
-        ".opencode/AGENTS.md"
+        ".opencode/$PLUGIN_ENTRY" `
+        ".opencode/AGENTS.md" `
+        ".opencode/$LEGACY_ENTRY"
+
+    Write-LegacyWarning $DotOpencode ".opencode\plugins\ix-plugin.ts"
 }
 
 # ── Done ──────────────────────────────────────────────────────────────────────
