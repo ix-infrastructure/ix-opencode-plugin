@@ -339,8 +339,9 @@ describe("ix-decide", () => {
     const out = await decide(one, impactByPath({ "src/foo.ts": "synthetic/impact-file-low.json" }));
     expect(out).toContain("**Verdict:** ALLOW");
     expect(out).toContain("**Risk:** LOW");
-    // directImporters 1 + directDependents 0 + memberLevelCallers 1
-    expect(out).toContain("**Total dependents:** 2");
+    // max(directImporters 1 + directDependents 0, memberLevelCallers 1): the
+    // one importer and the one member caller are the same file.
+    expect(out).toContain("**Total dependents:** 1");
     expect(out).toContain("**Subsystems affected:** Util");
   });
 
@@ -351,6 +352,15 @@ describe("ix-decide", () => {
     );
     expect(out).toContain("**Verdict:** ALLOW");
     expect(out).toContain("**Total dependents:** 1");
+  });
+
+  test("an importer that is also a dependent is counted once (dependentList, Ix v0.14.0+)", async () => {
+    // summary says 3 importers + 2 dependents, but Ix's de-duplicated
+    // dependentList has 3 rows: two of the dependents are also importers.
+    const out = await decide(one, impactByPath({ "src/foo.ts": "synthetic/impact-file-dependentlist.json" }));
+    expect(out).toContain("**Total dependents:** 3");
+    expect(out).not.toContain("**Total dependents:** 5");
+    expect(out).not.toContain("**Total dependents:** 7");
   });
 
   test("REVIEW on riskLevel high, BLOCK on critical", async () => {
@@ -370,7 +380,7 @@ describe("ix-decide", () => {
       impactByPath({ "src/a.ts": "synthetic/impact-file-low.json", "src/b.ts": "empty-graph/impact-file.json" }),
     );
     expect(out).toContain("**Verdict:** REVIEW");
-    expect(out).toContain("`src/a.ts` — LOW, 2 dependents");
+    expect(out).toContain("`src/a.ts` — LOW, 1 dependents");
     expect(out).toContain("`src/b.ts` — UNKNOWN (not assessed)");
   });
 

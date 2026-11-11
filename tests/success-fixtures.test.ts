@@ -466,13 +466,17 @@ describe("ix-trace on real output", () => {
 // ─── ix-decide ───────────────────────────────────────────────────────────────
 
 describe("ix-decide on real output", () => {
-  test("a high-risk file with 51 dependents is BLOCK, with its real count", async () => {
+  test("a high-risk file is BLOCK, counting overlapping dependents once", async () => {
     const { output } = await runTool("ix-decide.ts", { touched_paths: ["runtime/cli.ts"] }, [
       ["'impact runtime/cli.ts '*", "success/impact-file"],
     ]);
     expect(output).toContain("**Verdict:** BLOCK");
     expect(output).toContain("**Risk:** HIGH");
-    expect(output).toContain("**Total dependents:** 51");
+    // summary: directImporters 18, directDependents 0, memberLevelCallers 33.
+    // The member callers are mostly the importers seen one level down, so the
+    // count is max(18 + 0, 33), not their sum (51).
+    expect(output).toContain("**Total dependents:** 33");
+    expect(output).not.toContain("**Total dependents:** 51");
   });
 
   test("a leaf function is ALLOW", async () => {
