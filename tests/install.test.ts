@@ -7,14 +7,16 @@
  * The installer runs against a copy of this repo (no .git, so it never fetches
  * or resets anything), with stub `opencode`, `ix` and `bun` first on PATH.
  * Each install mode must leave a plugin entry point whose every relative
- * import exists at the installed location, and that Bun can import.
+ * import exists at the installed location, and that Bun can import. The
+ * installer may create, replace and delete only its own files: the ones its
+ * manifest lists.
  */
 
 import { afterAll, describe, expect, test } from "bun:test";
 import { spawnSync } from "node:child_process";
 import {
   chmodSync, cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync,
-  readlinkSync, rmSync, symlinkSync, writeFileSync,
+  rmSync, symlinkSync, writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -67,14 +69,18 @@ const STUBS = (() => {
   return bin;
 })();
 
-function install(home: string, args: string[], cwd = home) {
+function runInstaller(home: string, args: string[], cwd = home) {
   const r = spawnSync("bash", [path.join(SOURCE, "install.sh"), "--source", SOURCE, ...args], {
     cwd,
     env: { ...process.env, HOME: home, PATH: `${STUBS}${path.delimiter}${process.env.PATH}` },
     encoding: "utf8",
   });
-  const out = `${r.stdout}\n${r.stderr}`;
-  if (r.status !== 0) throw new Error(`install.sh ${args.join(" ")} exited ${r.status}:\n${out}`);
+  return { status: r.status, out: `${r.stdout}\n${r.stderr}` };
+}
+
+function install(home: string, args: string[], cwd = home) {
+  const { status, out } = runInstaller(home, args, cwd);
+  if (status !== 0) throw new Error(`install.sh ${args.join(" ")} exited ${status}:\n${out}`);
   return out;
 }
 
@@ -163,7 +169,10 @@ describe.skipIf(process.platform === "win32")("install.sh", () => {
     expectLoadable(config);
     const cfg = readJson(path.join(config, "opencode.json"));
     expect(cfg.plugin).toEqual([`./${ENTRY}`]);
+    expect(cfg.instructions).toEqual(["./ix-opencode-plugin/AGENTS.md"]);
     expect(existsSync(path.join(config, "commands/ix-debug.md"))).toBe(true);
+    // File by file: the directory OpenCode reads commands from is a real one.
+    expect(lstatSync(path.join(config, "commands")).isSymbolicLink()).toBe(false);
   });
 
   test("--project leaves a loadable plugin and registers it", () => {
@@ -192,26 +201,165 @@ describe.skipIf(process.platform === "win32")("install.sh", () => {
     mkdirSync(config, { recursive: true });
     symlinkSync(path.join(SOURCE, "plugins"), path.join(config, "plugins"));
     symlinkSync(path.join(SOURCE, "runtime"), path.join(config, "runtime"));
+    symlinkSync(path.join(SOURCE, "commands"), path.join(config, "commands"));
+    symlinkSync(path.join(SOURCE, "agents"), path.join(config, "agents"));
+    symlinkSync(path.join(SOURCE, "AGENTS.md"), path.join(config, "AGENTS.md"));
     writeFileSync(
       path.join(config, "opencode.json"),
       JSON.stringify({ plugin: ["./plugins/ix-plugin.ts", "other-plugin"], instructions: ["./AGENTS.md"] }),
     );
     install(home, []);
-    expect(existsSync(path.join(config, "plugins"))).toBe(false);
-    expect(existsSync(path.join(config, "runtime"))).toBe(false);
-    expect(readJson(path.join(config, "opencode.json")).plugin).toEqual(["other-plugin", `./${ENTRY}`]);
+    for (const old of ["plugins", "runtime", "AGENTS.md"]) {
+      expect(existsSync(path.join(config, old))).toBe(false);
+    }
+    expect(lstatSync(path.join(config, "commands")).isSymbolicLink()).toBe(false);
+    const cfg = readJson(path.join(config, "opencode.json"));
+    expect(cfg.plugin).toEqual(["other-plugin", `./${ENTRY}`]);
+    expect(cfg.instructions).toEqual(["./ix-opencode-plugin/AGENTS.md"]);
     expectLoadable(config);
   });
 
-  test("global uninstall removes the links it made", () => {
+  test("re-running the install changes nothing and needs no --force", () => {
     const home = freshDir("home");
     install(home, []);
-    install(home, ["--uninstall"]);
-    const config = path.join(home, ".config/opencode");
-    expect(existsSync(path.join(config, "ix-opencode-plugin"))).toBe(false);
-    for (const item of SH_ITEMS) {
-      const dest = path.join(config, item.split(":")[1]!);
-      expect(() => readlinkSync(dest)).toThrow();
-    }
+    const out = install(home, []);
+    expect(out).toContain("(0 written, 0 replaced)");
   });
+});
+
+/** Every file under `dir`, relative, "/"-separated, sorted. */
+function listFiles(dir: string): string[] {
+  const r = spawnSync("find", [".", "(", "-type", "f", "-o", "-type", "l", ")"], { cwd: dir, encoding: "utf8" });
+  return r.stdout.split("\n").filter(Boolean).map((p) => p.replace(/^\.\//, "")).sort();
+}
+
+/** The user's own files, in the directories the plugin also writes to. */
+const USER_FILES: Record<string, string> = {
+  "commands/my-command.md": "my command\n",
+  "agents/my-agent.json": "{}\n",
+  "plugins/my-plugin.ts": "export {};\n",
+  "tools/my-tool.ts": "export {};\n",
+  "AGENTS.md": "my rules\n",
+  "package.json": "{}\n",
+};
+
+function seedUserFiles(dir: string) {
+  for (const [rel, body] of Object.entries(USER_FILES)) {
+    mkdirSync(path.dirname(path.join(dir, rel)), { recursive: true });
+    writeFileSync(path.join(dir, rel), body);
+  }
+}
+
+function expectUserFilesIntact(dir: string) {
+  for (const [rel, body] of Object.entries(USER_FILES)) {
+    expect(readFileSync(path.join(dir, rel), "utf8")).toBe(body);
+  }
+}
+
+const MANIFEST = "ix-opencode-plugin/install-manifest.txt";
+
+function manifestPaths(dir: string): string[] {
+  return readFileSync(path.join(dir, MANIFEST), "utf8").split("\n").filter((l) => l && !l.startsWith("#"));
+}
+
+for (const mode of ["global", "project"] as const) {
+  describe.skipIf(process.platform === "win32")(`install.sh ${mode}: only the plugin's own files`, () => {
+    const setup = () => {
+      const home = freshDir("home");
+      const project = freshDir("project");
+      const dir = mode === "global" ? path.join(home, ".config/opencode") : path.join(project, ".opencode");
+      const args = mode === "global" ? [] : ["--project", project];
+      const configFile = mode === "global" ? path.join(dir, "opencode.json") : path.join(project, "opencode.json");
+      mkdirSync(dir, { recursive: true });
+      seedUserFiles(dir);
+      writeFileSync(configFile, JSON.stringify({ plugin: ["other-plugin"], model: "x/y" }));
+      return { home, dir, args, configFile };
+    };
+
+    test("install, --force and --uninstall keep the user's files", () => {
+      const { home, dir, args, configFile } = setup();
+      install(home, args);
+      expectUserFilesIntact(dir);
+      expectLoadable(dir);
+
+      install(home, [...args, "--force"]);
+      expectUserFilesIntact(dir);
+
+      install(home, [...args, "--uninstall"]);
+      expectUserFilesIntact(dir);
+      // Nothing of the plugin's is left: only the user's files remain.
+      const leftovers = listFiles(dir).filter((f) => !/^node_modules(\/|$)/.test(f) && f !== "opencode.json");
+      expect(leftovers).toEqual(Object.keys(USER_FILES).sort());
+      expect(existsSync(path.join(dir, "ix-opencode-plugin"))).toBe(false);
+      const cfg = readJson(configFile);
+      expect(cfg.plugin).toEqual(["other-plugin"]);
+      expect(cfg.instructions).toEqual([]);
+      expect(cfg.model).toBe("x/y");
+    });
+
+    test("the manifest lists every file the install wrote", () => {
+      const { home, dir, args } = setup();
+      install(home, args);
+      const listed = manifestPaths(dir).filter((p) => !p.endsWith("/"));
+      const userOrDeps = (f: string) =>
+        f in USER_FILES || /^node_modules(\/|$)/.test(f) || f === MANIFEST || f === "opencode.json";
+      expect(listFiles(dir).filter((f) => !userOrDeps(f))).toEqual([...listed].sort());
+      // Directories it created are listed; ones the user already had are not.
+      expect(manifestPaths(dir)).toContain("ix-opencode-plugin/");
+      expect(manifestPaths(dir)).not.toContain("commands/");
+    });
+
+    test("a user's file with a plugin file's name stops the install; --force replaces only it", () => {
+      const { home, dir, args } = setup();
+      writeFileSync(path.join(dir, "commands/ix-debug.md"), "my own ix-debug\n");
+
+      const { status, out } = runInstaller(home, args);
+      expect(status).not.toBe(0);
+      expect(out).toContain("commands/ix-debug.md");
+      expect(readFileSync(path.join(dir, "commands/ix-debug.md"), "utf8")).toBe("my own ix-debug\n");
+      expect(existsSync(path.join(dir, "ix-opencode-plugin"))).toBe(false);
+      expect(existsSync(path.join(dir, "commands/ix-plan.md"))).toBe(false);
+
+      install(home, [...args, "--force"]);
+      expect(readFileSync(path.join(dir, "commands/ix-debug.md"), "utf8"))
+        .toBe(readFileSync(path.join(SOURCE, "commands/ix-debug.md"), "utf8"));
+      expectUserFilesIntact(dir);
+    });
+
+    test("a re-install removes files the plugin no longer ships, and only those", () => {
+      const { home, dir, args } = setup();
+      install(home, args);
+      writeFileSync(path.join(dir, "commands/ix-retired.md"), "old\n");
+      writeFileSync(path.join(dir, MANIFEST), `${readFileSync(path.join(dir, MANIFEST), "utf8")}commands/ix-retired.md\n`);
+      install(home, args);
+      expect(existsSync(path.join(dir, "commands/ix-retired.md"))).toBe(false);
+      expectUserFilesIntact(dir);
+    });
+
+    test("a directory where the plugin installs a file is never removed", () => {
+      const { home, dir, args } = setup();
+      mkdirSync(path.join(dir, "commands/ix-debug.md"), { recursive: true });
+      writeFileSync(path.join(dir, "commands/ix-debug.md/keep.txt"), "keep\n");
+      const { status } = runInstaller(home, [...args, "--force"]);
+      expect(status).not.toBe(0);
+      expect(readFileSync(path.join(dir, "commands/ix-debug.md/keep.txt"), "utf8")).toBe("keep\n");
+    });
+  });
+}
+
+test.skipIf(process.platform === "win32")("--uninstall without a manifest removes nothing", () => {
+  const home = freshDir("home");
+  const project = freshDir("project");
+  const dir = path.join(project, ".opencode");
+  mkdirSync(dir, { recursive: true });
+  seedUserFiles(dir);
+  install(home, ["--project", project, "--uninstall"]);
+  expect(listFiles(dir)).toEqual(Object.keys(USER_FILES).sort());
+});
+
+test("neither installer removes a directory tree", () => {
+  const sh = readFileSync(path.join(REPO, "install.sh"), "utf8");
+  const ps = readFileSync(path.join(REPO, "install.ps1"), "utf8");
+  expect(/\brm\s+(-\w*r|-\w*R|--recursive)/.test(sh)).toBe(false);
+  expect(/Remove-Item[^\n]*-Recurse/.test(ps)).toBe(false);
 });

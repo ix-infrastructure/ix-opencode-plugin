@@ -25,8 +25,10 @@ Installs globally into `~/.config/opencode/` — active in every OpenCode sessio
 **Install flags:**
 
 ```bash
-# Force re-install — overwrites existing symlinks and config entries.
-# Use this if you've already installed and want to update to the latest version.
+# Update: re-run the install command. The installer replaces the files it
+# installed before (it lists them in ix-opencode-plugin/install-manifest.txt).
+# If a file it would write already exists and is not one of its own, it stops
+# without changing anything. --force replaces those files too, and only those.
 curl -fsSL https://raw.githubusercontent.com/ix-infrastructure/ix-opencode-plugin/main/install.sh | bash -s -- --force
 
 # Per-project install — copies plugin files into .opencode/ in the current directory
@@ -41,9 +43,10 @@ curl -fsSL https://raw.githubusercontent.com/ix-infrastructure/ix-opencode-plugi
 # Good for verifying the install path and config merges before committing.
 curl -fsSL https://raw.githubusercontent.com/ix-infrastructure/ix-opencode-plugin/main/install.sh | bash -s -- --dry-run
 
-# Uninstall — removes symlinks (global) or .opencode/ directory (per-project).
-# Does not modify opencode.json automatically; remove the plugin/instructions
-# entries from that file manually afterward.
+# Uninstall: removes exactly the files the install manifest lists, the
+# directories the installer created (if they are empty), and the plugin's
+# entries in opencode.json. Your own commands, agents and config stay.
+# Add --project [dir] to uninstall a per-project install.
 curl -fsSL https://raw.githubusercontent.com/ix-infrastructure/ix-opencode-plugin/main/install.sh | bash -s -- --uninstall
 
 # Use an existing local clone instead of downloading from GitHub.
