@@ -112,6 +112,13 @@ file, `summary.{callers,callees}` for a function, `propagationBuckets[].region`,
 and for `impact-degraded.json` the `graph` block with `riskLevel: "unknown"`
 that Ix emits on a hollow graph.
 
+`synthetic/impact-file-dependentlist.json` is a file record as Ix v0.14.0 and
+later prints it (Ix#876): the same fields plus `dependentList`, every direct
+importer and dependent de-duplicated by node id, each row
+`{kind, name, path, lineStart, lineEnd, via}`. Here two of the two
+`directDependents` are also importers, so `dependentList` has 3 rows against
+`directImporters + directDependents` = 5. Not v0.12.0 output.
+
 `synthetic/subsystems-stale*.{json,txt}`, `synthetic/subsystems-list-stale.json`
 and `synthetic/subsystems-scope-stale.json` are the `success/subsystems*`
 captures as a CLI with Ix#880 prints them while the architecture map is stale:

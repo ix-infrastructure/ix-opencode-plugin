@@ -415,7 +415,7 @@ When Ix reports the architecture map stale (llm `diagnostic code=map_stale` reco
 
 **Parameters:** `touched_paths` (required array), `intent` (default `edit`), `risk_tolerance` (default `medium`)
 
-**CLI:** `ix impact <path> --format json` per touched file (first 5) — synthesizes a conservative verdict from `riskLevel` and the dependent counts under `summary` (`directImporters + directDependents + memberLevelCallers` for a file, `callers` for a function: the same total Ix's risk inference uses). Subsystems come from `propagationBuckets[].region`.
+**CLI:** `ix impact <path> --format json` per touched file (first 5) — synthesizes a conservative verdict from `riskLevel` and the dependent counts under `summary` (for a file, the larger of the file-level count -- `dependentList.length`, the de-duplicated importers and dependents Ix prints since v0.14.0, else `directImporters + directDependents` -- and `memberLevelCallers`; for a function, `callers`. The counts overlap, so they are not added: a file's importers are mostly the same code as its members' callers. This matches the OpenClaw plugin's `max(importers + dependents, memberLevelCallers, callers)`). Subsystems come from `propagationBuckets[].region`.
 
 **Fails closed.** ALLOW is only given when every touched path has a parsed impact record with a real risk level and dependent counts.
 
