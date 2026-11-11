@@ -29,9 +29,7 @@ Installs globally into `~/.config/opencode/` — active in every OpenCode sessio
 # installed before (it lists them in ix-opencode-plugin/install-manifest.txt).
 # If a file it would write already exists and is not one of its own, it stops
 # without changing anything. --force replaces those files too, and only those.
-# It writes only into real directories, never through a symlinked one. Copies
-# an earlier release left in .opencode/ (plugins/ix-plugin.ts, runtime/,
-# AGENTS.md) are removed if they match this version and listed if they don't.
+# It writes only into real directories, never through a symlinked one.
 curl -fsSL https://raw.githubusercontent.com/ix-infrastructure/ix-opencode-plugin/main/install.sh | bash -s -- --force
 
 # Per-project install — copies plugin files into .opencode/ in the current directory
@@ -58,6 +56,16 @@ curl -fsSL https://raw.githubusercontent.com/ix-infrastructure/ix-opencode-plugi
 ```
 
 Flags can be combined — for example, `--force --dry-run` previews what a force re-install would do without changing anything.
+
+### Upgrading a per-project install from an earlier release
+
+Earlier releases copied the plugin straight into `.opencode/`: `plugins/ix-plugin.ts`, `runtime/`, `commands/ix-*.md`, `agents/ix-*.json` and `AGENTS.md`. Those copies have no manifest, so the installer recognises one as its own only when it is byte-identical to the file this version ships. Re-running `install.sh --project` (or `install.ps1 -Project`) then:
+
+- takes over identical `commands/` and `agents/` files, and stops before changing anything if any differ (an older version, or your own edits). Re-run with `--force` to replace exactly those files.
+- removes the old `plugins/ix-plugin.ts` together with its `runtime/` files when the entry point is identical. If the old entry point differs, all of them stay, because OpenCode loads every file in `.opencode/plugins/` and the old entry point still imports `runtime/`. The installer then prints the files to delete by hand, starting with `.opencode/plugins/ix-plugin.ts`.
+- removes an identical `.opencode/AGENTS.md`, and its `opencode.json` entry with it.
+
+`--uninstall --project` applies the same rules to the old copies.
 
 ### Windows (PowerShell)
 

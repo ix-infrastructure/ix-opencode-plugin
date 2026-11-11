@@ -158,6 +158,8 @@ function Test-ValidManifestPath([string]$Base, [string]$Line) {
         $rel.Contains(":") -or $rel.StartsWith("/")) { return $false }
     $parts = $rel.Split("/")
     if (@("ix-opencode-plugin", "commands", "agents") -notcontains $parts[0]) { return $false }
+    # A file entry needs at least two segments; only a directory entry may have one.
+    if (-not $Line.EndsWith("/") -and $parts.Count -lt 2) { return $false }
     $parent = ""
     for ($i = 0; $i -lt $parts.Count; $i++) {
         if (@("", ".", "..") -contains $parts[$i]) { return $false }
@@ -300,7 +302,12 @@ function Install-Into([string]$Base) {
     foreach ($f in $plan) {
         $dest = Join-Path $Base $f.Rel
         New-OwnedDir $Base ($f.Rel.Substring(0, [Math]::Max(0, $f.Rel.LastIndexOf("/")))) $manifest
-        if (Test-SameContent $f.Src $dest) { continue }
+        if (Test-Link $dest) {
+            # Copy-Item would write through the link; replace the link itself.
+            Invoke-Step "Remove link $($f.Rel)" { Remove-Item -LiteralPath $dest -Force }
+        } elseif (Test-SameContent $f.Src $dest) {
+            continue
+        }
         Invoke-Step "copy $($f.Rel)" { Copy-Item -LiteralPath $f.Src -Destination $dest -Force }
         $written++
     }
@@ -309,7 +316,7 @@ function Install-Into([string]$Base) {
     foreach ($old in $owned) {
         if ($old.EndsWith("/") -or ($rels -contains $old)) { continue }
         $oldPath = Join-Path $Base $old
-        if (Test-Path -LiteralPath $oldPath -PathType Leaf) {
+        if ((Test-ValidManifestPath $Base $old) -and (Test-Path -LiteralPath $oldPath -PathType Leaf)) {
             Invoke-Step "Remove $old" { Remove-Item -LiteralPath $oldPath -Force }
             Write-Ok "Removed $old (no longer part of the plugin)"
         }
@@ -324,14 +331,20 @@ function Install-Into([string]$Base) {
 # created, deepest first, each only if it is now empty.
 function Uninstall-From([string]$Base) {
     $manifest = Join-Path $Base $MANIFEST_REL
+    if (Test-Link (Join-Path $Base $PLUGIN_SUBDIR)) {
+        # Its manifest could name anything; do not read it or remove through it.
+        Write-Warn "$(Join-Path $Base $PLUGIN_SUBDIR) is a link -- nothing removed, manifest left in place. Remove the plugin's files by hand."
+        return
+    }
     if (-not (Test-Path -LiteralPath $manifest -PathType Leaf)) {
         Write-Warn "No install manifest at $manifest -- nothing to remove there."
         return
     }
     $paths = @(Get-ManifestPaths $Base $manifest)
     $n = 0
+    # Each entry is checked again right before it is removed.
     foreach ($rel in $paths) {
-        if ($rel.EndsWith("/")) { continue }
+        if ($rel.EndsWith("/") -or -not (Test-ValidManifestPath $Base $rel)) { continue }
         $file = Join-Path $Base $rel
         if (Test-Path -LiteralPath $file -PathType Leaf) {
             Invoke-Step "Remove $rel" { Remove-Item -LiteralPath $file -Force }
@@ -340,6 +353,7 @@ function Uninstall-From([string]$Base) {
     }
     Invoke-Step "Remove $manifest" { Remove-Item -LiteralPath $manifest -Force }
     foreach ($rel in @($paths | Where-Object { $_.EndsWith("/") } | Sort-Object -Descending)) {
+        if (-not (Test-ValidManifestPath $Base $rel)) { continue }
         $dir = Join-Path $Base $rel.TrimEnd("/")
         if (-not (Test-Path -LiteralPath $dir -PathType Container) -or (Test-Link $dir)) { continue }
         if (@(Get-ChildItem -LiteralPath $dir -Force).Count -eq 0) {
@@ -352,42 +366,84 @@ function Uninstall-From([string]$Base) {
 }
 
 # Earlier releases copied the entry point to plugins\ix-plugin.ts, runtime\*.ts
-# beside it and AGENTS.md into the OpenCode directory. Remove each copy that is
-# byte-identical to this version's file; list the rest, which may be the
-# user's own or an older version's, for the user to check.
+# beside it and AGENTS.md into the OpenCode directory. Those are removed only
+# when byte-identical to this version's files, and the runtime\ copies only
+# together with the entry point: OpenCode loads every file in plugins\, so an
+# old entry point left behind must keep the runtime files it imports.
 function Remove-LegacyCopies([string]$Dir) {
     if ((Test-Link (Join-Path $Dir "plugins")) -or (Test-Link (Join-Path $Dir "runtime"))) { return }
-    $pairs = @(
-        @{ Src = Join-Path $SourceDir "plugins\ix-plugin.ts"; Rel = $LEGACY_ENTRY }
-        @{ Src = Join-Path $SourceDir "AGENTS.md"; Rel = $LEGACY_AGENTS }
-    )
-    $runtime = Join-Path $SourceDir "runtime"
-    if (Test-Path -LiteralPath $runtime -PathType Container) {
-        foreach ($f in @(Get-ChildItem -LiteralPath $runtime -File | Where-Object { -not $_.Name.StartsWith(".") })) {
-            $pairs += @{ Src = $f.FullName; Rel = "runtime/$($f.Name)" }
+    $runtime = @()
+    $runtimeSrc = Join-Path $SourceDir "runtime"
+    if (Test-Path -LiteralPath $runtimeSrc -PathType Container) {
+        foreach ($f in @(Get-ChildItem -LiteralPath $runtimeSrc -File | Where-Object { -not $_.Name.StartsWith(".") })) {
+            $runtime += @{ Src = $f.FullName; Rel = "runtime/$($f.Name)" }
         }
     }
     $kept = @()
-    foreach ($p in $pairs) {
-        $dest = Join-Path $Dir $p.Rel
-        if (-not (Test-Path -LiteralPath $dest -PathType Leaf) -or (Test-Link $dest)) { continue }
-        if (Test-SameContent $p.Src $dest) {
-            Invoke-Step "Remove old copy $($p.Rel)" { Remove-Item -LiteralPath $dest -Force }
-            Write-Ok "Removed old copy $($p.Rel)"
+
+    $agents = Join-Path $Dir $LEGACY_AGENTS
+    if ((Test-Path -LiteralPath $agents -PathType Leaf) -and -not (Test-Link $agents)) {
+        if (Test-SameContent (Join-Path $SourceDir "AGENTS.md") $agents) {
+            Invoke-Step "Remove old copy $LEGACY_AGENTS" { Remove-Item -LiteralPath $agents -Force }
+            Write-Ok "Removed old copy $LEGACY_AGENTS"
         } else {
-            $kept += $dest
+            $kept += $agents
         }
     }
+
+    $entry = Join-Path $Dir $LEGACY_ENTRY
+    if ((Test-Path -LiteralPath $entry -PathType Leaf) -and -not (Test-Link $entry)) {
+        if (Test-SameContent (Join-Path $SourceDir "plugins\ix-plugin.ts") $entry) {
+            Invoke-Step "Remove old copy $LEGACY_ENTRY" { Remove-Item -LiteralPath $entry -Force }
+            Write-Ok "Removed old copy $LEGACY_ENTRY"
+            foreach ($r in $runtime) {
+                $dest = Join-Path $Dir $r.Rel
+                if (-not (Test-Path -LiteralPath $dest -PathType Leaf) -or (Test-Link $dest)) { continue }
+                if (Test-SameContent $r.Src $dest) {
+                    Invoke-Step "Remove old copy $($r.Rel)" { Remove-Item -LiteralPath $dest -Force }
+                    Write-Ok "Removed old copy $($r.Rel)"
+                } else {
+                    $kept += $dest
+                }
+            }
+        } else {
+            Write-Warn "An earlier version of this plugin is still installed at $entry."
+            Write-Info "OpenCode loads every file in $(Join-Path $Dir 'plugins'), so it runs beside this install."
+            Write-Info "It differs from this version, so it and its runtime\ files were left in place."
+            Write-Info "To remove the old version, delete:"
+            Write-Info "  $entry"
+            foreach ($r in $runtime) {
+                $dest = Join-Path $Dir $r.Rel
+                if (Test-Path -LiteralPath $dest -PathType Leaf) { Write-Info "  $dest" }
+            }
+        }
+    }
+
     if ($kept.Count -gt 0) {
         Write-Warn "These files are where an earlier install put the plugin, but differ from this version:"
         foreach ($k in $kept) { Write-Info $k }
-        Write-Info "If they are old plugin copies, delete them by hand (OpenCode loads every file in plugins\)."
+        Write-Info "If they are old plugin copies, delete them by hand."
     }
+}
+
+# The file a path finally names, following symbolic links.
+function Resolve-LinkTarget([string]$Path) {
+    for ($hop = 0; $hop -lt 32; $hop++) {
+        $item = Get-Item -LiteralPath $Path -Force -ErrorAction SilentlyContinue
+        if (-not $item -or -not ($item.Attributes -band [IO.FileAttributes]::ReparsePoint)) { return $Path }
+        $target = @($item.Target)[0]
+        if (-not $target) { return $Path }
+        if (-not [IO.Path]::IsPathRooted($target)) { $target = Join-Path (Split-Path $Path -Parent) $target }
+        $Path = $target
+    }
+    return $Path
 }
 
 # Write a file through a temp file beside it, so a failed write never leaves
 # it half-written.
 function Set-ContentAtomic([string]$Path, [string]$Text) {
+    # Write to the file a linked opencode.json points at, not over the link.
+    $Path = Resolve-LinkTarget $Path
     $tmp = Join-Path (Split-Path $Path -Parent) (".opencode.json." + [Guid]::NewGuid().ToString("N"))
     try {
         Set-Content -LiteralPath $tmp -Value $Text -Encoding UTF8
@@ -418,8 +474,11 @@ function Update-OpencodeJson {
 
     $problem = $null
     try {
-        $cfg = Get-Content -LiteralPath $Path -Raw -Encoding UTF8 | ConvertFrom-Json
-        if ($cfg -isnot [pscustomobject]) { $problem = "$Path does not hold a JSON object" }
+        # -InputObject, not the pipeline: a top-level array must stay one value.
+        $cfg = ConvertFrom-Json -InputObject (Get-Content -LiteralPath $Path -Raw -Encoding UTF8)
+        if ($null -eq $cfg -or $cfg -isnot [System.Management.Automation.PSCustomObject]) {
+            $problem = "$Path does not hold a JSON object"
+        }
     } catch {
         $problem = "Could not read $Path as JSON"
     }

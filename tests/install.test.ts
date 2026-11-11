@@ -559,3 +559,98 @@ describe.skipIf(process.platform === "win32")("opencode.json the installer canno
     expect(out).toContain("is not a list");
   });
 });
+
+for (const mode of ["global", "project"] as const) {
+  describe.skipIf(process.platform === "win32")(`install.sh ${mode}: links in the install root`, () => {
+    const setup = () => {
+      const home = freshDir("home");
+      const project = freshDir("project");
+      const dir = mode === "global" ? path.join(home, ".config/opencode") : path.join(project, ".opencode");
+      const args = mode === "global" ? [] : ["--project", project];
+      const configFile = mode === "global" ? path.join(dir, "opencode.json") : path.join(project, "opencode.json");
+      mkdirSync(dir, { recursive: true });
+      seedUserFiles(dir);
+      return { home, dir, args, configFile };
+    };
+
+    test("uninstall leaves a symlinked ix-opencode-plugin/ and what it points at alone", () => {
+      const { home, dir, args } = setup();
+      install(home, args);
+      const elsewhere = path.join(freshDir("moved"), "ix-opencode-plugin");
+      cpSync(path.join(dir, "ix-opencode-plugin"), elsewhere, { recursive: true, verbatimSymlinks: true });
+      rmSync(path.join(dir, "ix-opencode-plugin"), { recursive: true });
+      symlinkSync(elsewhere, path.join(dir, "ix-opencode-plugin"), "dir");
+      const before = listFiles(elsewhere);
+
+      const out = install(home, [...args, "--uninstall"]);
+      expect(out).toContain("is a symbolic link");
+      expect(lstatSync(path.join(dir, "ix-opencode-plugin")).isSymbolicLink()).toBe(true);
+      expect(listFiles(elsewhere)).toEqual(before);
+      expect(existsSync(path.join(elsewhere, "install-manifest.txt"))).toBe(true);
+      expectUserFilesIntact(dir);
+    });
+
+    test("a symlinked opencode.json stays a link and its target is updated", () => {
+      const { home, args, configFile } = setup();
+      const real = path.join(freshDir("dotfiles"), "opencode.json");
+      writeFileSync(real, JSON.stringify({ plugin: ["other-plugin"] }));
+      rmSync(configFile, { force: true });
+      symlinkSync(real, configFile);
+
+      install(home, args);
+      expect(lstatSync(configFile).isSymbolicLink()).toBe(true);
+      expect((readJson(real).plugin as string[])).toContain("other-plugin");
+      expect((readJson(real).plugin as string[]).some((p) => p.endsWith(ENTRY))).toBe(true);
+
+      install(home, [...args, "--uninstall"]);
+      expect(lstatSync(configFile).isSymbolicLink()).toBe(true);
+      expect(readJson(real).plugin).toEqual(["other-plugin"]);
+    });
+
+    test("a single-segment manifest entry is not removed", () => {
+      const { home, dir, args } = setup();
+      install(home, args);
+      // The user's agents/ becomes a link to a directory of their own.
+      const theirs = freshDir("their-agents");
+      writeFileSync(path.join(theirs, "mine.json"), "{}\n");
+      rmSync(path.join(dir, "agents"), { recursive: true });
+      symlinkSync(theirs, path.join(dir, "agents"), "dir");
+      writeFileSync(path.join(dir, MANIFEST), `${readFileSync(path.join(dir, MANIFEST), "utf8")}agents\ncommands\n`);
+
+      install(home, [...args, "--uninstall"]);
+      expect(lstatSync(path.join(dir, "agents")).isSymbolicLink()).toBe(true);
+      expect(readFileSync(path.join(theirs, "mine.json"), "utf8")).toBe("{}\n");
+      expect(existsSync(path.join(dir, "commands/my-command.md"))).toBe(true);
+    });
+  });
+}
+
+test.skipIf(process.platform === "win32")(
+  "an older entry point that differs keeps its runtime files, and the installer says how to remove it",
+  () => {
+    const home = freshDir("home");
+    const project = freshDir("project");
+    const dot = path.join(project, ".opencode");
+    for (const dir of ["plugins", "runtime", "commands", "agents"]) {
+      cpSync(path.join(SOURCE, dir), path.join(dot, dir), { recursive: true });
+    }
+    writeFileSync(path.join(dot, "plugins/ix-plugin.ts"), "// an older entry point\n");
+    writeFileSync(path.join(dot, "commands/ix-debug.md"), "an older command\n");
+    const runtimeFiles = listFiles(path.join(dot, "runtime"));
+
+    // The differing command needs --force; the old entry point stays even then.
+    expect(runInstaller(home, ["--project", project]).status).not.toBe(0);
+    const out = install(home, ["--project", project, "--force"]);
+    expect(readFileSync(path.join(dot, "plugins/ix-plugin.ts"), "utf8")).toBe("// an older entry point\n");
+    expect(listFiles(path.join(dot, "runtime"))).toEqual(runtimeFiles);
+    expect(out).toContain("still installed");
+    expect(out).toContain(path.join(dot, "plugins/ix-plugin.ts"));
+    expect(out).toContain(path.join(dot, "runtime/cli.ts"));
+    expect(readFileSync(path.join(dot, "commands/ix-debug.md"), "utf8"))
+      .toBe(readFileSync(path.join(SOURCE, "commands/ix-debug.md"), "utf8"));
+
+    const un = install(home, ["--project", project, "--uninstall"]);
+    expect(un).toContain("still installed");
+    expect(listFiles(path.join(dot, "runtime"))).toEqual(runtimeFiles);
+  },
+);

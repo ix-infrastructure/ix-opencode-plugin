@@ -168,10 +168,13 @@ plan_files() {
 # no empty, "." or ".." segment, not starting with "-", inside one of the
 # directories it installs into (ix-opencode-plugin/, commands/, agents/), with
 # no symlinked directory on the way and its parent resolving inside <base>.
+# A file entry needs at least two segments ("commands/x.md"); only a
+# directory entry ("commands/") may have one.
 valid_manifest_path() {
   local base="$1" rel="${2%/}" parent="" real_base real_parent i n
   local -a parts
   [[ -n "$rel" && "$rel" != /* && "$rel" != -* && "$rel" != */ && "$rel" != *\\* ]] || return 1
+  [[ "$2" == */ || "$rel" == */* ]] || return 1
   case "$rel" in
     "$PLUGIN_SUBDIR" | "$PLUGIN_SUBDIR"/* | commands | commands/* | agents | agents/*) ;;
     *) return 1 ;;
@@ -348,7 +351,7 @@ install_into() {
     if [[ "$rel_old" == */ ]]; then
       final="$final"$'\n'"$rel_old"
     elif ! grep -Fxq -- "$rel_old" <<< "$dests"; then
-      if [[ -L "$base/$rel_old" || -f "$base/$rel_old" ]]; then
+      if valid_manifest_path "$base" "$rel_old" && [[ -L "$base/$rel_old" || -f "$base/$rel_old" ]]; then
         run rm -f "$base/$rel_old"
         fmt_ok "Removed $rel_old (no longer part of the plugin)"
       fi
@@ -363,13 +366,20 @@ install_into() {
 # install created, deepest first, each only if it is now empty.
 uninstall_from() {
   local base="$1" manifest="$1/$MANIFEST_REL" paths rel n=0
+  if [[ -L "$base/$PLUGIN_SUBDIR" ]]; then
+    # Its manifest could name anything; do not read it or remove through it.
+    fmt_warn "$base/$PLUGIN_SUBDIR is a symbolic link -- nothing removed, manifest left in place. Remove the plugin's files by hand."
+    return
+  fi
   if [[ ! -f "$manifest" ]]; then
     fmt_warn "No install manifest at $manifest -- nothing to remove there."
     return
   fi
   paths="$(manifest_paths "$base" "$manifest")"
+  # Each entry is checked again right before it is removed.
   while IFS= read -r rel; do
     [[ -n "$rel" && "$rel" != */ ]] || continue
+    valid_manifest_path "$base" "$rel" || continue
     if [[ -L "$base/$rel" || -f "$base/$rel" ]]; then
       run rm -f "$base/$rel"
       n=$((n + 1))
@@ -378,6 +388,7 @@ uninstall_from() {
   run rm -f "$manifest"
   while IFS= read -r rel; do
     [[ -n "$rel" ]] || continue
+    valid_manifest_path "$base" "$rel" || continue
     if [[ -d "$base/$rel" && ! -L "$base/${rel%/}" ]]; then
       run rmdir "$base/$rel" 2>/dev/null || fmt_info "Kept $base/$rel (not empty)"
     fi
@@ -386,33 +397,58 @@ uninstall_from() {
 }
 
 # Earlier --project installs copied the entry point to plugins/ix-plugin.ts,
-# runtime/*.ts beside it and AGENTS.md into .opencode/. Remove each copy that
-# is byte-identical to this version's file; list the rest, which may be the
-# project's own or an older version's, for the user to check.
+# runtime/*.ts beside it and AGENTS.md into .opencode/. Those are removed only
+# when byte-identical to this version's files, and the runtime/ copies only
+# together with the entry point: OpenCode loads every file in plugins/, so an
+# old entry point left behind must keep the runtime files it imports.
 remove_legacy_copies() {
-  local base="$1" pair src rel kept="" f
-  local -a pairs=("plugins/ix-plugin.ts:$LEGACY_ENTRY" "AGENTS.md:$LEGACY_AGENTS")
+  local base="$1" f rel kept="" entry="$1/$LEGACY_ENTRY"
+  local -a runtime=()
+  [[ ! -L "$base/plugins" && ! -L "$base/runtime" ]] || return 0
   if [[ -d "$SOURCE_DIR/runtime" ]]; then
     while IFS= read -r f; do
-      pairs+=("runtime/$f:runtime/$f")
+      [[ -n "$f" ]] && runtime+=("runtime/$f")
     done <<< "$(cd "$SOURCE_DIR/runtime" && find . -type f ! -name '.*' | sed 's|^\./||' | LC_ALL=C sort)"
   fi
-  [[ ! -L "$base/plugins" && ! -L "$base/runtime" ]] || return 0
-  for pair in "${pairs[@]}"; do
-    src="$SOURCE_DIR/${pair%%:*}"
-    rel="${pair#*:}"
-    [[ -f "$base/$rel" && ! -L "$base/$rel" ]] || continue
-    if cmp -s "$src" "$base/$rel"; then
-      run rm -f "$base/$rel"
-      fmt_ok "Removed old copy $rel"
+
+  if [[ -f "$base/$LEGACY_AGENTS" && ! -L "$base/$LEGACY_AGENTS" ]]; then
+    if cmp -s "$SOURCE_DIR/AGENTS.md" "$base/$LEGACY_AGENTS"; then
+      run rm -f "$base/$LEGACY_AGENTS"
+      fmt_ok "Removed old copy $LEGACY_AGENTS"
     else
-      kept="$kept$rel"$'\n'
+      kept="$kept$LEGACY_AGENTS"$'\n'
     fi
-  done
+  fi
+
+  if [[ -f "$entry" && ! -L "$entry" ]]; then
+    if cmp -s "$SOURCE_DIR/plugins/ix-plugin.ts" "$entry"; then
+      run rm -f "$entry"
+      fmt_ok "Removed old copy $LEGACY_ENTRY"
+      for rel in ${runtime[@]+"${runtime[@]}"}; do
+        [[ -f "$base/$rel" && ! -L "$base/$rel" ]] || continue
+        if cmp -s "$SOURCE_DIR/$rel" "$base/$rel"; then
+          run rm -f "$base/$rel"
+          fmt_ok "Removed old copy $rel"
+        else
+          kept="$kept$rel"$'\n'
+        fi
+      done
+    else
+      fmt_warn "An earlier version of this plugin is still installed at $entry."
+      fmt_info "OpenCode loads every file in $base/plugins/, so it runs beside this install."
+      fmt_info "It differs from this version, so it and its runtime/ files were left in place."
+      fmt_info "To remove the old version, delete:"
+      fmt_info "  $entry"
+      for rel in ${runtime[@]+"${runtime[@]}"}; do
+        [[ -f "$base/$rel" ]] && fmt_info "  $base/$rel"
+      done
+    fi
+  fi
+
   if [[ -n "$kept" ]]; then
     fmt_warn "These files are where an earlier install put the plugin, but differ from this version:"
     printf '%s' "$kept" | while IFS= read -r rel; do fmt_info "$base/$rel"; done
-    fmt_info "If they are old plugin copies, delete them by hand (OpenCode loads every file in plugins/)."
+    fmt_info "If they are old plugin copies, delete them by hand."
   fi
 }
 
@@ -481,13 +517,15 @@ for key, entry in (("plugin", plugin_entry), ("instructions", agents_entry)):
   cfg[key] = values
 changed = json.dumps(cfg, sort_keys=True) != before
 if changed and os.environ.get("DRY_RUN") != "true":
-  fd, tmp = tempfile.mkstemp(dir=os.path.dirname(os.path.abspath(path)), prefix=".opencode.json.")
+  # Write to the file a symlinked opencode.json points at, not over the link.
+  target = os.path.realpath(path)
+  fd, tmp = tempfile.mkstemp(dir=os.path.dirname(target), prefix=".opencode.json.")
   try:
     with os.fdopen(fd, "w") as f:
       json.dump(cfg, f, indent=2)
       f.write("\n")
-    shutil.copymode(path, tmp)
-    os.replace(tmp, path)
+    shutil.copymode(target, tmp)
+    os.replace(tmp, target)
   except BaseException:
     os.unlink(tmp)
     raise
