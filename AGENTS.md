@@ -132,7 +132,8 @@ runtime/
   cli.ts             — runs `ix` with a timeout, keeping stdout on a non-zero exit
   automap.ts         — the guarded, debounced post-edit `ix map <repo-root>`
   llm.ts             — version-gated `--format llm` fast path
-  map-stale.ts       — reads Ix's stale-architecture-map signal (Ix#880) for ix-map / ix-subsystems
+  map-stale.ts       — reads Ix's stale-architecture-map signal (Ix#880) for ix-map, ix-subsystems,
+                       ix-explain, ix-impact, ix-query and ix-docs-tool
   secrets.ts         — secret detection and redaction for tool output
 
 commands/

@@ -39,6 +39,8 @@ The string-only output constraint comes from the OpenCode runtime. Returning obj
 
 If `ix locate` returns multiple matches, returns the first result plus a note to narrow with `--kind` or `--path`.
 
+- **Stale map:** when `ix locate` or `ix explain` reports the architecture map stale (`map_stale: true`, Ix#880), adds one line under the heading, once even if both report it (preferring the one with `regions_as_of`): `` _Map is stale (regions as of map rev 7, 42 files); recent edits may not be reflected — run `ix map --remap` to refresh it now._ `` (the parenthetical only when Ix gives `regions_as_of`). Without the field (fresh map, older CLI) the output is unchanged.
+
 **Example output:**
 ```
 ## ix-query: UserService
@@ -123,6 +125,8 @@ Error: <error message>
 4. Returns risk report with verdict and recommended action
 
 Risk levels: `low` → `SAFE TO PROCEED`, `medium` → `REVIEW CALLERS FIRST`, `high`/`critical` → `NEEDS CHANGE PLAN`. A withheld `riskLevel: "unknown"` (hollow or empty graph) → `CANNOT ASSESS`, with Ix's `graph` verdict and fix.
+
+- **Stale map:** when `ix impact` reports the architecture map stale (`map_stale: true`, Ix#880), adds one line under the heading: `` _Map is stale (regions as of map rev 7, 42 files); recent edits may not be reflected — run `ix map --remap` to refresh it now._ `` (the parenthetical only when Ix gives `regions_as_of`). Without the field (fresh map, older CLI) the output is unchanged.
 
 **Example output:**
 ```
@@ -315,6 +319,8 @@ Graph-based features (ix-query, ix-neighbors, ix-impact, ix-map) work without Pr
 | `standard` | above + `ix stats`, and `ix explain` for the first 5 of overview's `keyItems` |
 | `full` | above + `ix impact` for change risk context |
 
+- **Stale map:** when `ix overview` or `ix locate` reports the architecture map stale (`map_stale: true`, Ix#880), adds one line under the heading, once (preferring the one with `regions_as_of`): `` _Map is stale (regions as of map rev 7, 42 files); recent edits may not be reflected — run `ix map --remap` to refresh it now._ `` (the parenthetical only when Ix gives `regions_as_of`). Without the field (fresh map, older CLI) the output is unchanged.
+
 **Example output (standard):**
 ```
 ## Context: runtime/cli.ts
@@ -353,7 +359,9 @@ _55 files · 870 nodes_
 
 **Parameters:** `symbol` (required)
 
-**CLI:** `ix explain <symbol> --format json`
+**CLI:** `ix explain <symbol> --format json` (or `--format llm` on a CLI that supports it)
+
+- **Stale map:** when Ix reports the architecture map stale (JSON `map_stale: true`, or the llm `diagnostic code=map_stale` record; Ix#880), adds one line under the heading and does not repeat the raw record: `` _Map is stale (regions as of map rev 7, 42 files); recent edits may not be reflected — run `ix map --remap` to refresh it now._ `` (the parenthetical only when Ix gives `regions_as_of`). Without it the output is unchanged. This is separate from `facts.stale` (the file changed since the last ingest), which keeps its own line.
 
 ---
 
