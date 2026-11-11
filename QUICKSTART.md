@@ -23,15 +23,14 @@ bun --version
 
 ### Option A — Per-project (recommended)
 
-Copy this plugin into your project's `.opencode/` directory:
+The installer does this for you: `./install.sh --project` (or `.\install.ps1 -Project` on Windows). By hand, from your project root:
 
 ```bash
-# From your project root
-mkdir -p .opencode/plugins .opencode/tools .opencode/commands .opencode/agents .opencode/runtime
+mkdir -p .opencode/ix-opencode-plugin .opencode/commands .opencode/agents
 
-cp -r /path/to/ix-opencode-plugin/plugins/.  .opencode/plugins/
-cp -r /path/to/ix-opencode-plugin/tools/.    .opencode/tools/
-cp -r /path/to/ix-opencode-plugin/runtime/.  .opencode/runtime/
+cp -r /path/to/ix-opencode-plugin/plugins    .opencode/ix-opencode-plugin/plugins
+cp -r /path/to/ix-opencode-plugin/tools      .opencode/ix-opencode-plugin/tools
+cp -r /path/to/ix-opencode-plugin/runtime    .opencode/ix-opencode-plugin/runtime
 cp -r /path/to/ix-opencode-plugin/commands/. .opencode/commands/
 cp -r /path/to/ix-opencode-plugin/agents/.   .opencode/agents/
 cp    /path/to/ix-opencode-plugin/AGENTS.md  .opencode/AGENTS.md
@@ -40,24 +39,26 @@ cp    /path/to/ix-opencode-plugin/AGENTS.md  .opencode/AGENTS.md
 Then add to your project's `opencode.json`:
 ```json
 {
-  "plugin": [".opencode/plugins/ix-plugin.ts"],
+  "plugin": [".opencode/ix-opencode-plugin/plugins/ix-plugin.ts"],
   "instructions": [".opencode/AGENTS.md"]
 }
 ```
 
-> **Note:** The `runtime/` directory must be copied — `tools/*.ts` import the shared `ix` runner from `../runtime/cli.ts`.
+> **Note:** `plugins/`, `tools/` and `runtime/` must sit side by side under one directory — the entry point imports `../tools/*` and the tools import `../runtime/*`. Keep them out of `.opencode/plugins/` and `.opencode/tools/`: OpenCode loads every file there as a standalone plugin or tool.
 
 ### Option B — Global install
 
 ```bash
-mkdir -p ~/.config/opencode/{plugins,tools,runtime,commands,agents}
+mkdir -p ~/.config/opencode/ix-opencode-plugin ~/.config/opencode/commands ~/.config/opencode/agents
 
-cp -r /path/to/ix-opencode-plugin/plugins/.  ~/.config/opencode/plugins/
-cp -r /path/to/ix-opencode-plugin/tools/.    ~/.config/opencode/tools/
-cp -r /path/to/ix-opencode-plugin/runtime/.  ~/.config/opencode/runtime/
+cp -r /path/to/ix-opencode-plugin/plugins    ~/.config/opencode/ix-opencode-plugin/plugins
+cp -r /path/to/ix-opencode-plugin/tools      ~/.config/opencode/ix-opencode-plugin/tools
+cp -r /path/to/ix-opencode-plugin/runtime    ~/.config/opencode/ix-opencode-plugin/runtime
 cp -r /path/to/ix-opencode-plugin/commands/. ~/.config/opencode/commands/
 cp -r /path/to/ix-opencode-plugin/agents/.   ~/.config/opencode/agents/
 ```
+
+Add `"./ix-opencode-plugin/plugins/ix-plugin.ts"` to the `plugin` list in `~/.config/opencode/opencode.json`.
 
 Append `AGENTS.md` content to your global `~/.config/opencode/AGENTS.md` (append or create).
 

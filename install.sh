@@ -15,6 +15,30 @@ REPO_URL="https://github.com/ix-infrastructure/ix-opencode-plugin.git"
 DEFAULT_SOURCE_DIR="${HOME}/.local/share/ix-opencode-plugin"
 GLOBAL_CONFIG_DIR="${HOME}/.config/opencode"
 
+# Everything the plugin needs to load, as "<path in the plugin repo>:<path under
+# the OpenCode config directory>". Global mode links these and --project copies
+# them; both read this one list. install.ps1 carries the same list, and
+# tests/install.test.ts checks the two match and cover every module the entry
+# point imports.
+#
+# The TypeScript lives under one ix-opencode-plugin/ directory, not in
+# plugins/ and tools/ at the top level: OpenCode loads every file in those two
+# as a standalone plugin or tool, and tools/*.ts here are modules of the one
+# plugin. The entry imports them as ../tools/*, so they stay side by side.
+PLUGIN_SUBDIR="ix-opencode-plugin"
+PLUGIN_ENTRY="$PLUGIN_SUBDIR/plugins/ix-plugin.ts"
+INSTALL_ITEMS=(
+  "plugins:ix-opencode-plugin/plugins"
+  "tools:ix-opencode-plugin/tools"
+  "runtime:ix-opencode-plugin/runtime"
+  "commands:commands"
+  "agents:agents"
+  "AGENTS.md:AGENTS.md"
+)
+# Where releases before the list above put the entry point (relative to the
+# OpenCode directory). An install removes the opencode.json entry for it.
+LEGACY_ENTRY="plugins/ix-plugin.ts"
+
 # ── Flags ─────────────────────────────────────────────────────────────────────
 
 INSTALL_MODE="global"
@@ -145,8 +169,22 @@ copy_or_warn() {
   fmt_ok "Copied $label"
 }
 
+# Earlier releases linked whole directories into the global config:
+# plugins -> <clone>/plugins and runtime -> <clone>/runtime. Remove only those
+# links: symlinks whose target sits in a clone of this plugin.
+remove_legacy_links() {
+  local item dest
+  for item in plugins runtime; do
+    dest="$GLOBAL_CONFIG_DIR/$item"
+    if [[ -L "$dest" && -f "$(readlink "$dest")/../plugins/ix-plugin.ts" ]]; then
+      run rm "$dest"
+      fmt_ok "Removed old link $item"
+    fi
+  done
+}
+
 merge_opencode_json() {
-  local path="$1" plugin_entry="$2" agents_entry="$3"
+  local path="$1" plugin_entry="$2" agents_entry="$3" legacy_entry="$4"
 
   if [[ ! -f "$path" ]]; then
     write_file "$path" '{
@@ -158,7 +196,7 @@ merge_opencode_json() {
     return
   fi
 
-  if grep -qF "$plugin_entry" "$path" && ! $FORCE; then
+  if grep -qF "\"$plugin_entry\"" "$path" && ! grep -qF "\"$legacy_entry\"" "$path" && ! $FORCE; then
     fmt_warn "Plugin already registered in $(basename "$path") — use --force to re-add"
     return
   fi
@@ -167,12 +205,13 @@ merge_opencode_json() {
     if $DRY_RUN; then
       fmt_info "[dry-run] merge plugin/instructions entries into $path"
     else
-      python3 - "$path" "$plugin_entry" "$agents_entry" <<'PYEOF'
+      python3 - "$path" "$plugin_entry" "$agents_entry" "$legacy_entry" <<'PYEOF'
 import sys, json
-path, plugin_entry, agents_entry = sys.argv[1], sys.argv[2], sys.argv[3]
+path, plugin_entry, agents_entry, legacy_entry = sys.argv[1:5]
 with open(path) as f:
   cfg = json.load(f)
-plugins = cfg.get("plugin", [])
+# The entry point used to live at legacy_entry; drop that registration.
+plugins = [p for p in cfg.get("plugin", []) if p != legacy_entry]
 if plugin_entry not in plugins:
   plugins.append(plugin_entry)
 cfg["plugin"] = plugins
@@ -188,7 +227,7 @@ PYEOF
     fi
   else
     fmt_warn "python3 not found — add these lines to $path manually:"
-    fmt_info "  \"plugin\": [\"$plugin_entry\"]"
+    fmt_info "  \"plugin\": [\"$plugin_entry\"]  (and remove \"$legacy_entry\" if present)"
     fmt_info "  \"instructions\": [\"$agents_entry\"]"
   fi
 }
@@ -266,13 +305,17 @@ fmt_ok "@opencode-ai/plugin ready"
 if $UNINSTALL; then
   fmt_step "Uninstalling"
   if [[ "$INSTALL_MODE" == "global" ]]; then
-    for item in plugins commands agents runtime AGENTS.md; do
-      local_dest="$GLOBAL_CONFIG_DIR/$item"
+    for entry in "${INSTALL_ITEMS[@]}"; do
+      local_dest="$GLOBAL_CONFIG_DIR/${entry#*:}"
       if [[ -L "$local_dest" ]]; then
         run rm "$local_dest"
-        fmt_ok "Removed $item"
+        fmt_ok "Removed ${entry#*:}"
       fi
     done
+    remove_legacy_links
+    if [[ -d "$GLOBAL_CONFIG_DIR/$PLUGIN_SUBDIR" ]]; then
+      run rmdir "$GLOBAL_CONFIG_DIR/$PLUGIN_SUBDIR" 2>/dev/null || true
+    fi
     fmt_warn "opencode.json not modified — remove plugin/instructions entries manually if needed"
   else
     run rm -rf "$PROJECT_DIR/.opencode"
@@ -290,27 +333,39 @@ if [[ "$INSTALL_MODE" == "global" ]]; then
   fmt_step "Installing globally → $GLOBAL_CONFIG_DIR"
   run mkdir -p "$GLOBAL_CONFIG_DIR"
 
-  for item in plugins commands agents runtime AGENTS.md; do
-    link_or_warn "$SOURCE_DIR/$item" "$GLOBAL_CONFIG_DIR/$item" "$item"
+  remove_legacy_links
+  run mkdir -p "$GLOBAL_CONFIG_DIR/$PLUGIN_SUBDIR"
+  for entry in "${INSTALL_ITEMS[@]}"; do
+    link_or_warn "$SOURCE_DIR/${entry%%:*}" "$GLOBAL_CONFIG_DIR/${entry#*:}" "${entry#*:}"
   done
 
   merge_opencode_json "$GLOBAL_CONFIG_DIR/opencode.json" \
-    "./plugins/ix-plugin.ts" \
-    "./AGENTS.md"
+    "./$PLUGIN_ENTRY" \
+    "./AGENTS.md" \
+    "./$LEGACY_ENTRY"
 
 # ── Install: per-project ──────────────────────────────────────────────────────
 
 else
   fmt_step "Installing into project → $PROJECT_DIR/.opencode"
-  run mkdir -p "$PROJECT_DIR/.opencode"
+  run mkdir -p "$PROJECT_DIR/.opencode/$PLUGIN_SUBDIR"
 
-  for item in plugins commands agents runtime AGENTS.md; do
-    copy_or_warn "$SOURCE_DIR/$item" "$PROJECT_DIR/.opencode/$item" "$item"
+  for entry in "${INSTALL_ITEMS[@]}"; do
+    copy_or_warn "$SOURCE_DIR/${entry%%:*}" "$PROJECT_DIR/.opencode/${entry#*:}" "${entry#*:}"
   done
 
   merge_opencode_json "$PROJECT_DIR/opencode.json" \
-    ".opencode/plugins/ix-plugin.ts" \
-    ".opencode/AGENTS.md"
+    ".opencode/$PLUGIN_ENTRY" \
+    ".opencode/AGENTS.md" \
+    ".opencode/$LEGACY_ENTRY"
+
+  # Earlier releases copied the entry point to .opencode/plugins/ and the
+  # runtime to .opencode/runtime/. Those copies cannot be told apart from the
+  # project's own files, so they are left in place.
+  if [[ -f "$PROJECT_DIR/.opencode/$LEGACY_ENTRY" ]]; then
+    fmt_warn "An earlier install left .opencode/$LEGACY_ENTRY (and .opencode/runtime/)."
+    fmt_info "OpenCode loads every file in .opencode/plugins/; delete that copy by hand."
+  fi
 fi
 
 # ── Done ──────────────────────────────────────────────────────────────────────
