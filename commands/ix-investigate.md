@@ -10,9 +10,12 @@ Check `command -v ix` first. If unavailable, use Grep + Read as fallback.
 
 Run once at the start:
 ```bash
-ix briefing --format llm 2>&1
+ix briefing --format json 2>/dev/null; echo "exit=$?"
 ```
-If it returns JSON with a `revision` field, Pro is available. Extract `recentDecisions` and `openBugs` for use in Pro steps below. If it errors, skip all **[Pro]** labeled steps.
+Read the exit code, not the wording:
+- `exit=0` and a JSON object: Ix Pro is available. Use `recentDecisions` and `openBugs` from it in the **[Pro]** steps below. A field may be empty or `null`.
+- non-zero exit and nothing else on stdout: Ix Pro is not installed. Without Pro, `ix` answers every Pro command with "requires Ix Pro" on stderr and exit 1. That is the normal answer, not an error: skip every **[Pro]** step and do not mention it.
+- non-zero exit and a JSON error record (`{"error": ..., "message": ...}`): Pro is installed but could not answer. Skip the **[Pro]** steps and say so in one line, quoting `message`.
 
 ## Goal
 
@@ -85,7 +88,7 @@ Read **the symbol only** — never the full file. If the symbol is a class, read
 
 If Pro is available and `recentDecisions` from the briefing is non-empty, check for decisions affecting this symbol:
 ```bash
-ix decisions --topic <resolved-symbol> --format llm
+ix decisions --topic <resolved-symbol> --format json
 ```
 Include any relevant decisions in the output under **Design context**.
 
