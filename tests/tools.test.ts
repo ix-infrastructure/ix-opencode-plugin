@@ -532,3 +532,90 @@ esac`,
     }
   });
 });
+
+// ─── SmellsLimit ─────────────────────────────────────────────────────────────
+//
+// `limit` reaches `ix smells` as `--limit N` on the llm fast path, and only
+// when the caller set it. Every released ix rejects `--limit` on `smells` (the
+// fake does too unless IX_FAKE_SMELLS_LIMIT=1); then the JSON path, which never
+// sends it, answers and cuts client-side.
+
+describe("SmellsLimit", () => {
+  // Three stored claims. `--format llm` honours `--limit` the way Ix#828 does:
+  // the header, a results_truncated diagnostic when it cuts, then the rows.
+  const SMELLS_STUB = `case "$1" in
+  --version) echo "0.12.0" ;;
+  smells)
+    _fmt=json; _lim=0; _prev=
+    for _a in "$@"; do
+      [ "$_prev" = --format ] && _fmt=$_a
+      [ "$_prev" = --limit ] && _lim=$_a
+      _prev=$_a
+    done
+    if [ "$_fmt" = llm ]; then
+      if [ "$_lim" = 0 ] || [ "$_lim" -ge 3 ]; then _n=3; else _n=$_lim; fi
+      echo "smells count=3 shown=$_n version=smell_v1"
+      [ "$_n" -lt 3 ] && echo "diagnostic code=results_truncated message=\\"3 smell claims; showing $_n. Raise --limit to see the rest.\\""
+      _i=1
+      while [ "$_i" -le "$_n" ]; do echo "smell kind=has_smell.orphan_file entity=e$_i confidence=0.$((10 - _i))"; _i=$((_i + 1)); done
+    else
+      echo '{"count":3,"inference_version":"smell_v1","smells":[{"smell":"has_smell.orphan_file","entity_id":"e1","confidence":0.9},{"smell":"has_smell.orphan_file","entity_id":"e2","confidence":0.8},{"smell":"has_smell.orphan_file","entity_id":"e3","confidence":0.7}]}'
+    fi ;;
+esac`;
+
+  async function runSmells(params: Record<string, unknown>, env: Record<string, string> = {}) {
+    const log = path.join(mkdtempSync(path.join(tmpdir(), "ix-log-")), "calls");
+    try {
+      const output = await runNamedToolWithStub("ix-smells.ts", params, SMELLS_STUB, {
+        IX_DISABLE_LLM_FORMAT: "0",
+        IX_FAKE_LOG: log,
+        ...env,
+      });
+      const calls = (existsSync(log) ? readFileSync(log, "utf8") : "")
+        .split("\n")
+        .filter(Boolean)
+        .map((line) => line.split("|").slice(2).join("|"))
+        .filter((argv) => argv.startsWith("smells"));
+      return { output, calls };
+    } finally {
+      rmSync(path.dirname(log), { recursive: true, force: true });
+    }
+  }
+
+  test("forwards limit as --limit to an ix that has it", async () => {
+    const { output, calls } = await runSmells({ limit: 2 }, { IX_FAKE_SMELLS_LIMIT: "1" });
+    expect(calls).toEqual(["smells --list --limit 2 --format llm"]);
+    // The truncation diagnostic is not a row, so it pushes no smell out.
+    expect(output).toContain("entity=e1");
+    expect(output).toContain("entity=e2");
+    expect(output).toContain("results_truncated");
+    expect(output).not.toContain("more (raise");
+  });
+
+  test("an ix without --limit still answers, cut client-side", async () => {
+    const { output, calls } = await runSmells({ limit: 2 });
+    expect(calls).toEqual(["smells --list --limit 2 --format llm", "smells --list --format json"]);
+    expect(output).toContain("(showing 2 of 3)");
+    expect(output).toContain("`e1`");
+    expect(output).not.toContain("`e3`");
+    expect(output).not.toContain("unknown option");
+  });
+
+  test("no limit given: --limit is never sent", async () => {
+    const { output, calls } = await runSmells({});
+    expect(calls).toEqual(["smells --list --format llm"]);
+    expect(output).toContain("entity=e3");
+  });
+
+  test("limit is capped at 200, and a non-positive one is not sent", async () => {
+    const capped = await runSmells({ limit: 500 }, { IX_FAKE_SMELLS_LIMIT: "1" });
+    expect(capped.calls).toEqual(["smells --list --limit 200 --format llm"]);
+    const zero = await runSmells({ limit: 0 }, { IX_FAKE_SMELLS_LIMIT: "1" });
+    expect(zero.calls).toEqual(["smells --list --format llm"]);
+  });
+
+  test("detect forwards limit to the detection run", async () => {
+    const { calls } = await runSmells({ limit: 7, detect: true }, { IX_FAKE_SMELLS_LIMIT: "1" });
+    expect(calls).toEqual(["smells --limit 7 --format llm"]);
+  });
+});
