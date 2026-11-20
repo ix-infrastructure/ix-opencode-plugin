@@ -18,8 +18,22 @@
  * Fields are the ones `ix impact --format json` emits (Ix
  * ix-cli/src/cli/commands/impact.ts): `riskLevel`, and under `summary` either
  * `directImporters` / `directDependents` / `memberLevelCallers` (a file or
- * other container) or `callers` (a function). Their sum is the same total Ix's
- * own risk inference uses.
+ * other container) or `callers` (a function).
+ *
+ * ## Counting dependents
+ *
+ * Those counts overlap, so they are not added together. A file's importers
+ * and the callers of its members are mostly the same code seen at two levels,
+ * and a node can be both an importer and a dependent. The count is the larger
+ * of two views:
+ *
+ * - file level: the importers and dependents, each counted once. Ix since
+ *   v0.14.0 lists them de-duplicated as `dependentList`; an older Ix has only
+ *   `directImporters + directDependents`;
+ * - member level: `memberLevelCallers`.
+ *
+ * A function has only `callers`. This is the same reading the OpenClaw plugin
+ * uses (`max(importers + dependents, memberLevelCallers, callers)`).
  */
 
 import { failureDetail, runIx } from "../runtime/cli.ts";
@@ -85,10 +99,30 @@ type ImpactRecord = {
   riskLevel?: unknown;
   graph?: { status?: unknown };
   summary?: Record<string, unknown>;
+  dependentList?: unknown;
   propagationBuckets?: { region?: unknown }[];
 };
 
-const COUNT_FIELDS = ["directImporters", "directDependents", "memberLevelCallers", "callers"] as const;
+const num = (v: unknown): number | undefined => (typeof v === "number" && Number.isFinite(v) ? v : undefined);
+
+/**
+ * How many places reach the target, without counting one place twice (see
+ * "Counting dependents" above). Undefined when the record has no counts.
+ */
+export function dependentCount(impact: ImpactRecord): number | undefined {
+  const summary = impact.summary ?? {};
+  const importers = num(summary["directImporters"]);
+  const dependents = num(summary["directDependents"]);
+  const fileLevel = Array.isArray(impact.dependentList)
+    ? impact.dependentList.length
+    : importers !== undefined || dependents !== undefined
+      ? (importers ?? 0) + (dependents ?? 0)
+      : undefined;
+  const views = [fileLevel, num(summary["memberLevelCallers"]), num(summary["callers"])].filter(
+    (v): v is number => v !== undefined,
+  );
+  return views.length > 0 ? Math.max(...views) : undefined;
+}
 
 async function assess(filePath: string, dir: string): Promise<Assessment> {
   // `runIx`, not `safeRun`: an unresolved path exits 1 while printing a record,
@@ -124,9 +158,8 @@ async function assess(filePath: string, dir: string): Promise<Assessment> {
     return { path: filePath, ok: false, reason: `Ix gave no usable risk level (riskLevel: ${risk ?? "missing"})` };
   }
 
-  const summary = impact.summary ?? {};
-  const counts = COUNT_FIELDS.map((k) => summary[k]).filter((v): v is number => typeof v === "number");
-  if (counts.length === 0) {
+  const dependents = dependentCount(impact);
+  if (dependents === undefined) {
     return { path: filePath, ok: false, reason: "`ix impact` output has no dependent counts" };
   }
 
@@ -138,7 +171,7 @@ async function assess(filePath: string, dir: string): Promise<Assessment> {
     path: filePath,
     ok: true,
     risk: risk as RiskLevel,
-    dependents: counts.reduce((a, b) => a + b, 0),
+    dependents,
     regions,
   };
 }

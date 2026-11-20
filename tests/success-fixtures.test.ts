@@ -466,13 +466,17 @@ describe("ix-trace on real output", () => {
 // ─── ix-decide ───────────────────────────────────────────────────────────────
 
 describe("ix-decide on real output", () => {
-  test("a high-risk file with 51 dependents is BLOCK, with its real count", async () => {
+  test("a high-risk file is BLOCK, counting overlapping dependents once", async () => {
     const { output } = await runTool("ix-decide.ts", { touched_paths: ["runtime/cli.ts"] }, [
       ["'impact runtime/cli.ts '*", "success/impact-file"],
     ]);
     expect(output).toContain("**Verdict:** BLOCK");
     expect(output).toContain("**Risk:** HIGH");
-    expect(output).toContain("**Total dependents:** 51");
+    // summary: directImporters 18, directDependents 0, memberLevelCallers 33.
+    // The member callers are mostly the importers seen one level down, so the
+    // count is max(18 + 0, 33), not their sum (51).
+    expect(output).toContain("**Total dependents:** 33");
+    expect(output).not.toContain("**Total dependents:** 51");
   });
 
   test("a leaf function is ALLOW", async () => {
@@ -579,6 +583,200 @@ describe("ix-smells on real output", () => {
     ]);
     expect(output).toContain("Ix could not confirm the graph is mapped");
     expect(detections(calls)).toEqual([]);
+  });
+});
+
+// ─── stale architecture map (Ix#880) ─────────────────────────────────────────
+
+/**
+ * Since Ix#880 a region reader answering from a deferred map says so: JSON
+ * `map_stale: true` (+ `regions_as_of`), llm one `diagnostic code=map_stale`
+ * record. The tools turn that into one line under the heading; without it
+ * (fresh map, or a CLI before Ix#880) their output is exactly as before.
+ * `synthetic/*-stale*` are the success captures with those keys/that record
+ * added, as Ix's `mapStaleJson` / `mapStaleLlm` add them.
+ */
+describe("a stale architecture map is said once, under the heading", () => {
+  const STALE = "_Map is stale (regions as of map rev 1, 38 files); recent edits may not be reflected — run `ix map --remap` to refresh it now._";
+  const STALE_NO_ASOF = "_Map is stale; recent edits may not be reflected — run `ix map --remap` to refresh it now._";
+  const withoutLine = (output: string, line: string) => output.replace(`${line}\n\n`, "");
+
+  for (const llm of [false, true]) {
+    const path_ = llm ? "llm" : "JSON";
+
+    test(`ix-subsystems (${path_}): stale map, with regions_as_of`, async () => {
+      const fresh = await runTool("ix-subsystems.ts", {}, [["'subsystems '*", "success/subsystems"]], { llm });
+      const stale = await runTool("ix-subsystems.ts", {}, [["'subsystems '*", "synthetic/subsystems-stale"]], { llm });
+      expect(stale.output.startsWith(`## ix-subsystems\n\n${STALE}\n\n`)).toBe(true);
+      expect(stale.output.split(STALE).length).toBe(2);
+      // The raw record is not passed through as well.
+      expect(stale.output).not.toContain("diagnostic code=map_stale");
+      expect(stale.output).not.toContain("Stale map:");
+      expect(withoutLine(stale.output, STALE)).toBe(fresh.output);
+      expectNoMissedFields(stale.output);
+    });
+
+    test(`ix-subsystems (${path_}): stale map, no regions_as_of`, async () => {
+      const fresh = await runTool("ix-subsystems.ts", {}, [["'subsystems '*", "success/subsystems"]], { llm });
+      const stale = await runTool("ix-subsystems.ts", {}, [["'subsystems '*", "synthetic/subsystems-stale-no-asof"]], { llm });
+      expect(stale.output.startsWith(`## ix-subsystems\n\n${STALE_NO_ASOF}\n\n`)).toBe(true);
+      expect(stale.output).not.toContain("diagnostic code=map_stale");
+      expect(withoutLine(stale.output, STALE_NO_ASOF)).toBe(fresh.output);
+    });
+
+    test(`ix-subsystems (${path_}): fresh map, no stale line`, async () => {
+      const { output } = await runTool("ix-subsystems.ts", {}, [["'subsystems '*", "success/subsystems"]], { llm });
+      expect(output).not.toContain("Map is stale");
+      expect(output.startsWith(llm ? "## ix-subsystems\n\nmap files=38" : "## ix-subsystems\n\n**11 subsystems**")).toBe(true);
+    });
+  }
+
+  // ix-map runs only `--format json` (no llm path), so the llm case is that
+  // turning the llm fast path on changes nothing.
+  for (const llm of [false, true]) {
+    const label = llm ? " with the llm fast path allowed" : "";
+
+    test(`ix-map${label}: stale map, with regions_as_of`, async () => {
+      const fresh = await runTool("ix-map.ts", {}, MAP_ROUTES, { llm });
+      const stale = await runTool("ix-map.ts", {}, [
+        ["'subsystems --list '*", "synthetic/subsystems-list-stale"],
+        ["'subsystems --format '*", "synthetic/subsystems-stale"],
+        ["'stats '*", "success/stats"],
+      ], { llm });
+      expect(stale.output.startsWith(`## ix-map\n\n${STALE}\n\n**Codebase:**`)).toBe(true);
+      // Both region reads said it; the tool says it once.
+      expect(stale.output.split(STALE).length).toBe(2);
+      expect(withoutLine(stale.output, STALE)).toBe(fresh.output);
+      expectNoMissedFields(stale.output);
+    });
+
+    test(`ix-map${label}: fresh map, no stale line`, async () => {
+      const { output } = await runTool("ix-map.ts", {}, MAP_ROUTES, { llm });
+      expect(output).not.toContain("Map is stale");
+      expect(output.startsWith("## ix-map\n\n**Codebase:**")).toBe(true);
+    });
+  }
+
+  test("ix-map: prefers the read that names the map", async () => {
+    const { output } = await runTool("ix-map.ts", {}, [
+      ["'subsystems --list '*", "synthetic/subsystems-list-stale"],
+      ["'subsystems --format '*", "synthetic/subsystems-stale-no-asof"],
+      ["'stats '*", "success/stats"],
+    ]);
+    expect(output.startsWith(`## ix-map\n\n${STALE}\n\n`)).toBe(true);
+    expect(output).not.toContain(STALE_NO_ASOF);
+  });
+
+  test("ix-map: only the health list says it", async () => {
+    const fresh = await runTool("ix-map.ts", {}, MAP_ROUTES);
+    const { output } = await runTool("ix-map.ts", {}, [
+      ["'subsystems --list '*", "synthetic/subsystems-list-stale"],
+      ["'subsystems --format '*", "success/subsystems"],
+      ["'stats '*", "success/stats"],
+    ]);
+    expect(withoutLine(output, STALE)).toBe(fresh.output);
+    expect(output).toContain(STALE);
+  });
+
+  test("ix-map with a scope, stats off: the line goes under the heading", async () => {
+    const routes: Route[] = [
+      ["'subsystems --list '*", "success/subsystems-list"],
+      ["'subsystems Runtime '*", "synthetic/subsystems-scope-stale"],
+    ];
+    const fresh = await runTool("ix-map.ts", { scope: "Runtime", include_stats: false }, MAP_ROUTES);
+    const stale = await runTool("ix-map.ts", { scope: "Runtime", include_stats: false }, routes);
+    expect(stale.output.startsWith(`## ix-map: Runtime\n\n${STALE}\n\n**Subsystem Runtime**`)).toBe(true);
+    expect(withoutLine(stale.output, STALE)).toBe(fresh.output);
+  });
+
+  // The other region readers: explain, impact, locate, overview. Before #42
+  // their stale signal reached the agent only through a substring check in the
+  // plugin hook; now each tool reads it from the record.
+  for (const llm of [false, true]) {
+    const path_ = llm ? "llm" : "JSON";
+    test(`ix-explain (${path_}): stale map, said once under the heading`, async () => {
+      const fresh = await runTool("ix-explain.ts", { symbol: "runIx" }, [["'explain runIx '*", "success/explain"]], { llm });
+      const stale = await runTool("ix-explain.ts", { symbol: "runIx" }, [["'explain runIx '*", "synthetic/explain-stale"]], { llm });
+      expect(stale.output.startsWith(`## ix-explain: runIx\n\n${STALE}\n\n`)).toBe(true);
+      expect(stale.output.split(STALE).length).toBe(2);
+      expect(stale.output).not.toContain("diagnostic code=map_stale");
+      expect(withoutLine(stale.output, STALE)).toBe(fresh.output);
+      expect(fresh.output).not.toContain("Map is stale");
+    });
+  }
+
+  test("ix-impact: stale map, said once under the heading", async () => {
+    const fresh = await runTool("ix-impact.ts", { target: "runtime/cli.ts" }, [["'impact runtime/cli.ts '*", "success/impact-file"]]);
+    const stale = await runTool("ix-impact.ts", { target: "runtime/cli.ts" }, [["'impact runtime/cli.ts '*", "synthetic/impact-file-stale"]]);
+    expect(stale.output.startsWith(`## Impact: runtime/cli.ts\n\n${STALE}\n\n`)).toBe(true);
+    expect(stale.output.split(STALE).length).toBe(2);
+    expect(withoutLine(stale.output, STALE)).toBe(fresh.output);
+    expect(fresh.output).not.toContain("Map is stale");
+  });
+
+  test("ix-query: locate and explain both say it; the tool says it once", async () => {
+    const fresh = await runTool("ix-query.ts", { symbol: "runIx" }, [
+      ["'locate runIx '*", "success/locate"],
+      ["'explain runIx '*", "success/explain"],
+    ]);
+    const stale = await runTool("ix-query.ts", { symbol: "runIx" }, [
+      ["'locate runIx '*", "synthetic/locate-stale"],
+      ["'explain runIx '*", "synthetic/explain-stale"],
+    ]);
+    expect(stale.output.startsWith(`## ix-query: runIx\n\n${STALE}\n\n`)).toBe(true);
+    expect(stale.output.split(STALE).length).toBe(2);
+    expect(withoutLine(stale.output, STALE)).toBe(fresh.output);
+    expect(fresh.output).not.toContain("Map is stale");
+  });
+
+  test("ix-docs-tool: a stale locate puts the line under the heading", async () => {
+    const routes = (locate: string): Route[] => [
+      ["'locate runtime/cli.ts '*", locate],
+      ["'overview runtime/cli.ts '*", "success/overview"],
+      ["'stats '*", "success/stats"],
+    ];
+    const fresh = await runTool("ix-docs-tool.ts", { target: "runtime/cli.ts", depth: "brief" }, routes("success/locate"));
+    const stale = await runTool("ix-docs-tool.ts", { target: "runtime/cli.ts", depth: "brief" }, routes("synthetic/locate-stale"));
+    expect(stale.output.startsWith(`## Context: runtime/cli.ts\n\n${STALE}\n\n`)).toBe(true);
+    expect(withoutLine(stale.output, STALE)).toBe(fresh.output);
+    expect(fresh.output).not.toContain("Map is stale");
+  });
+});
+
+// ─── the plugin's tool.execute.after hook (#42) ──────────────────────────────
+
+describe("the tool.execute.after hook adds no stale note of its own", () => {
+  /** A tool's output, as the plugin's after-hook leaves it. */
+  async function afterHook(tool: string, output: string): Promise<string> {
+    const mod = await import("../plugins/ix-plugin.ts");
+    const reg = (await mod.server({ directory: "/tmp/ix-test-nonexistent-workspace-99999" } as never)) as Record<
+      string,
+      unknown
+    >;
+    const hook = reg["tool.execute.after"] as (i: unknown, o: { title: string; output: string; metadata: unknown }) => Promise<void>;
+    const out = { title: "", output, metadata: {} };
+    await hook({ tool, sessionID: "s", callID: "c", args: {} }, out);
+    return out.output;
+  }
+
+  test("a result that lists runtime/map-stale.ts is left as it is", async () => {
+    const { output } = await runTool("ix-locate.ts", { pattern: "runIx", limit: 5 }, [["'text runIx '*", "success/text"]]);
+    for (const text of [
+      output,
+      `${output}\n- \`runtime/map-stale.ts\`:12 — isStale`,
+      "Ix says: Run `ix map` from the project root. Note: run ix map once, confidence < 0.7.",
+    ]) {
+      expect(await afterHook("ix-locate", text)).toBe(text);
+    }
+  });
+
+  test("a record with map_stale: true gets exactly one note", async () => {
+    const { output } = await runTool("ix-impact.ts", { target: "runtime/cli.ts" }, [
+      ["'impact runtime/cli.ts '*", "synthetic/impact-file-stale"],
+    ]);
+    const after = await afterHook("ix-impact", output);
+    expect(after).toBe(output);
+    expect(after.match(/stale/gi)?.length).toBe(1);
   });
 });
 

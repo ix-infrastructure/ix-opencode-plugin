@@ -10,9 +10,12 @@ Check `command -v ix` first. If unavailable, use Grep to find all usages and est
 
 Run once at the start:
 ```bash
-ix briefing --format llm 2>&1
+ix briefing --format json 2>/dev/null; echo "exit=$?"
 ```
-If it returns JSON with a `revision` field, Pro is available. Extract `openBugs` for use in Pro steps below. If it errors, skip all **[Pro]** labeled steps.
+Read the exit code, not the wording:
+- `exit=0` and a JSON object: Ix Pro is available. Use `openBugs` from it in the **[Pro]** steps below. A field may be empty or `null`.
+- non-zero exit and nothing else on stdout: Ix Pro is not installed. Without Pro, `ix` answers every Pro command with "requires Ix Pro" on stderr and exit 1. That is the normal answer, not an error: skip every **[Pro]** step and do not mention it.
+- non-zero exit and a JSON error record (`{"error": ..., "message": ...}`): Pro is installed but could not answer. Skip the **[Pro]** steps and say so in one line, quoting `message`.
 
 ## Goal
 

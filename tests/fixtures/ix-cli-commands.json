@@ -1,0 +1,795 @@
+{
+  "source": {
+    "repo": "ix-infrastructure/Ix",
+    "ref": "origin/main",
+    "commit": "1c806bd3",
+    "cli": "ix-cli/src/cli"
+  },
+  "generatedBy": "tests/fixtures/regen-ix-commands.ts",
+  "commands": {
+    "around": {
+      "module": "commands/around.ts",
+      "flags": [
+        "--budget",
+        "--format",
+        "--help",
+        "--limit"
+      ],
+      "formats": [
+        "json",
+        "llm",
+        "text"
+      ]
+    },
+    "callees": {
+      "module": "commands/callers.ts",
+      "flags": [
+        "--all",
+        "--format",
+        "--help",
+        "--kind",
+        "--limit",
+        "--no-suggest",
+        "--offset",
+        "--path",
+        "--pick",
+        "--strict"
+      ],
+      "formats": [
+        "json",
+        "llm",
+        "text"
+      ]
+    },
+    "callers": {
+      "module": "commands/callers.ts",
+      "flags": [
+        "--all",
+        "--format",
+        "--help",
+        "--kind",
+        "--limit",
+        "--no-suggest",
+        "--offset",
+        "--path",
+        "--pick",
+        "--strict"
+      ],
+      "formats": [
+        "json",
+        "llm",
+        "text"
+      ]
+    },
+    "config": {
+      "module": "commands/config.ts",
+      "flags": [
+        "--dry-run",
+        "--help"
+      ],
+      "formats": []
+    },
+    "conflicts": {
+      "module": "commands/conflicts.ts",
+      "flags": [
+        "--format",
+        "--help"
+      ],
+      "formats": [
+        "json",
+        "llm",
+        "text"
+      ]
+    },
+    "contains": {
+      "module": "commands/contains.ts",
+      "flags": [
+        "--format",
+        "--help",
+        "--kind",
+        "--limit",
+        "--offset",
+        "--path",
+        "--pick",
+        "--strict"
+      ],
+      "formats": [
+        "json",
+        "llm",
+        "text"
+      ]
+    },
+    "context": {
+      "module": "commands/context.ts",
+      "flags": [
+        "--as-of-rev",
+        "--depth",
+        "--diff",
+        "--format",
+        "--from-issue",
+        "--help",
+        "--kind",
+        "--lean",
+        "--list",
+        "--max-chars",
+        "--max-entities",
+        "--max-evidence",
+        "--max-relationships",
+        "--max-tokens",
+        "--out",
+        "--path",
+        "--pick",
+        "--resume",
+        "--save",
+        "--strict"
+      ],
+      "formats": [
+        "json",
+        "llm",
+        "text"
+      ]
+    },
+    "depends": {
+      "module": "commands/depends.ts",
+      "flags": [
+        "--cap",
+        "--depth",
+        "--format",
+        "--help",
+        "--include-tests",
+        "--kind",
+        "--path",
+        "--pick",
+        "--strict",
+        "--tests-only"
+      ],
+      "formats": [
+        "json",
+        "llm",
+        "text"
+      ]
+    },
+    "diff": {
+      "module": "commands/diff.ts",
+      "flags": [
+        "--all",
+        "--content",
+        "--entity",
+        "--format",
+        "--full",
+        "--help",
+        "--kind",
+        "--limit",
+        "--path",
+        "--pick",
+        "--strict",
+        "--summary"
+      ],
+      "formats": [
+        "json",
+        "llm",
+        "text"
+      ]
+    },
+    "docker": {
+      "module": "commands/docker.ts",
+      "flags": [
+        "--follow",
+        "--help",
+        "--local-token",
+        "--no-local-token",
+        "--remove-all-data",
+        "--remove-data",
+        "--yes"
+      ],
+      "formats": []
+    },
+    "doctor": {
+      "module": "commands/doctor.ts",
+      "flags": [
+        "--format",
+        "--help"
+      ],
+      "formats": [
+        "json",
+        "llm",
+        "text"
+      ]
+    },
+    "entity": {
+      "module": "commands/entity.ts",
+      "flags": [
+        "--format",
+        "--help"
+      ],
+      "formats": [
+        "json",
+        "llm",
+        "text"
+      ]
+    },
+    "explain": {
+      "module": "commands/explain.ts",
+      "flags": [
+        "--format",
+        "--help",
+        "--kind",
+        "--no-suggest",
+        "--path",
+        "--pick",
+        "--raw",
+        "--strict"
+      ],
+      "formats": [
+        "json",
+        "llm",
+        "text"
+      ]
+    },
+    "help": {
+      "module": "commands/workflows.ts",
+      "flags": [
+        "--help"
+      ],
+      "formats": []
+    },
+    "history": {
+      "module": "commands/history.ts",
+      "flags": [
+        "--format",
+        "--help",
+        "--kind",
+        "--path",
+        "--pick",
+        "--strict"
+      ],
+      "formats": [
+        "json",
+        "llm",
+        "text"
+      ]
+    },
+    "hook": {
+      "module": "commands/hook.ts",
+      "flags": [
+        "--budget",
+        "--graph-root",
+        "--help",
+        "--worktree"
+      ],
+      "formats": []
+    },
+    "impact": {
+      "module": "commands/impact.ts",
+      "flags": [
+        "--all",
+        "--depth",
+        "--format",
+        "--help",
+        "--kind",
+        "--limit",
+        "--no-suggest",
+        "--path",
+        "--pick",
+        "--strict"
+      ],
+      "formats": [
+        "json",
+        "llm",
+        "text"
+      ]
+    },
+    "implementations": {
+      "module": "commands/overrides.ts",
+      "flags": [
+        "--format",
+        "--help",
+        "--kind",
+        "--limit",
+        "--offset",
+        "--path",
+        "--pick",
+        "--strict"
+      ],
+      "formats": [
+        "json",
+        "llm",
+        "text"
+      ]
+    },
+    "imported-by": {
+      "module": "commands/imports.ts",
+      "flags": [
+        "--format",
+        "--help",
+        "--kind",
+        "--limit",
+        "--offset",
+        "--path",
+        "--pick",
+        "--strict"
+      ],
+      "formats": [
+        "json",
+        "llm",
+        "text"
+      ]
+    },
+    "imports": {
+      "module": "commands/imports.ts",
+      "flags": [
+        "--format",
+        "--help",
+        "--kind",
+        "--limit",
+        "--offset",
+        "--path",
+        "--pick",
+        "--strict"
+      ],
+      "formats": [
+        "json",
+        "llm",
+        "text"
+      ]
+    },
+    "ingest": {
+      "module": "commands/ingest.ts",
+      "flags": [
+        "--debug",
+        "--exclude",
+        "--force",
+        "--format",
+        "--github",
+        "--help",
+        "--lang",
+        "--limit",
+        "--no-recursive",
+        "--path",
+        "--prune-stale-workspace",
+        "--root",
+        "--since",
+        "--token"
+      ],
+      "formats": [
+        "json",
+        "llm",
+        "text"
+      ]
+    },
+    "init": {
+      "module": "commands/init.ts",
+      "flags": [
+        "--help"
+      ],
+      "formats": []
+    },
+    "install": {
+      "module": "commands/install.ts",
+      "flags": [
+        "--dry-run",
+        "--force",
+        "--help",
+        "--json",
+        "--yes"
+      ],
+      "formats": []
+    },
+    "inventory": {
+      "module": "commands/inventory.ts",
+      "flags": [
+        "--format",
+        "--help",
+        "--kind",
+        "--limit",
+        "--offset",
+        "--path"
+      ],
+      "formats": [
+        "json",
+        "llm",
+        "text"
+      ]
+    },
+    "locate": {
+      "module": "commands/locate.ts",
+      "flags": [
+        "--format",
+        "--help",
+        "--kind",
+        "--no-suggest",
+        "--path",
+        "--pick",
+        "--strict"
+      ],
+      "formats": [
+        "json",
+        "llm",
+        "text"
+      ]
+    },
+    "map": {
+      "module": "commands/map.ts",
+      "flags": [
+        "--all-items",
+        "--format",
+        "--full",
+        "--graph",
+        "--help",
+        "--level",
+        "--list",
+        "--max-items",
+        "--min-confidence",
+        "--prune-stale-workspace",
+        "--remap",
+        "--silent",
+        "--sort",
+        "--verbose"
+      ],
+      "formats": [
+        "json",
+        "llm",
+        "silent",
+        "text"
+      ]
+    },
+    "mcp": {
+      "module": "commands/mcp.ts",
+      "flags": [
+        "--dry-run",
+        "--force",
+        "--format",
+        "--help",
+        "--host",
+        "--tools"
+      ],
+      "formats": [
+        "json",
+        "llm",
+        "text"
+      ]
+    },
+    "note": {
+      "module": "commands/note.ts",
+      "flags": [
+        "--actor",
+        "--exclude-superseded",
+        "--help",
+        "--json",
+        "--limit",
+        "--node",
+        "--q",
+        "--session",
+        "--since",
+        "--tag"
+      ],
+      "formats": []
+    },
+    "overrides": {
+      "module": "commands/overrides.ts",
+      "flags": [
+        "--format",
+        "--help",
+        "--kind",
+        "--limit",
+        "--offset",
+        "--path",
+        "--pick",
+        "--strict"
+      ],
+      "formats": [
+        "json",
+        "llm",
+        "text"
+      ]
+    },
+    "overview": {
+      "module": "commands/overview.ts",
+      "flags": [
+        "--format",
+        "--help",
+        "--kind",
+        "--path",
+        "--pick",
+        "--strict"
+      ],
+      "formats": [
+        "json",
+        "llm",
+        "text"
+      ]
+    },
+    "patches": {
+      "module": "commands/patches.ts",
+      "flags": [
+        "--format",
+        "--help",
+        "--limit"
+      ],
+      "formats": [
+        "json",
+        "llm",
+        "text"
+      ]
+    },
+    "query": {
+      "module": "commands/query.ts",
+      "flags": [
+        "--as-of",
+        "--depth",
+        "--format",
+        "--help",
+        "--unsafe"
+      ],
+      "formats": [
+        "json",
+        "text"
+      ]
+    },
+    "rank": {
+      "module": "commands/rank.ts",
+      "flags": [
+        "--by",
+        "--exclude-kind",
+        "--exclude-path",
+        "--format",
+        "--help",
+        "--kind",
+        "--path",
+        "--top"
+      ],
+      "formats": [
+        "json",
+        "llm",
+        "text"
+      ]
+    },
+    "read": {
+      "module": "commands/read.ts",
+      "flags": [
+        "--all",
+        "--format",
+        "--help",
+        "--kind",
+        "--path",
+        "--pick",
+        "--root"
+      ],
+      "formats": [
+        "json",
+        "llm",
+        "text"
+      ]
+    },
+    "reset": {
+      "module": "commands/reset.ts",
+      "flags": [
+        "--code",
+        "--help",
+        "--ingest",
+        "--workspace",
+        "--yes"
+      ],
+      "formats": []
+    },
+    "savings": {
+      "module": "commands/savings.ts",
+      "flags": [
+        "--detail",
+        "--format",
+        "--help",
+        "--model"
+      ],
+      "formats": [
+        "json",
+        "llm",
+        "text"
+      ]
+    },
+    "search": {
+      "module": "commands/search.ts",
+      "flags": [
+        "--as-of",
+        "--format",
+        "--help",
+        "--include-tests",
+        "--kind",
+        "--language",
+        "--limit",
+        "--path",
+        "--semantic",
+        "--tests-only"
+      ],
+      "formats": [
+        "json",
+        "llm",
+        "text"
+      ]
+    },
+    "session": {
+      "module": "commands/session.ts",
+      "flags": [
+        "--actor",
+        "--force",
+        "--format",
+        "--help",
+        "--json",
+        "--purpose",
+        "--ttl"
+      ],
+      "formats": [
+        "json",
+        "text"
+      ]
+    },
+    "smells": {
+      "module": "commands/smells.ts",
+      "flags": [
+        "--format",
+        "--god-module-chunks",
+        "--god-module-fan",
+        "--help",
+        "--limit",
+        "--list",
+        "--orphan-max-connections",
+        "--wait",
+        "--weak-max-neighbors"
+      ],
+      "formats": [
+        "json",
+        "llm",
+        "text"
+      ]
+    },
+    "stats": {
+      "module": "commands/stats.ts",
+      "flags": [
+        "--format",
+        "--help"
+      ],
+      "formats": [
+        "json",
+        "llm",
+        "text"
+      ]
+    },
+    "status": {
+      "module": "commands/status.ts",
+      "flags": [
+        "--format",
+        "--help",
+        "--root"
+      ],
+      "formats": [
+        "json",
+        "llm",
+        "text"
+      ]
+    },
+    "subsystems": {
+      "module": "commands/subsystems.ts",
+      "flags": [
+        "--all-items",
+        "--detailed",
+        "--edge-cap",
+        "--explain",
+        "--format",
+        "--graph",
+        "--help",
+        "--level",
+        "--limit",
+        "--list",
+        "--max-items",
+        "--member-file-cap",
+        "--min-confidence",
+        "--offset",
+        "--pick",
+        "--regions",
+        "--sort",
+        "--target",
+        "--verbose"
+      ],
+      "formats": [
+        "json",
+        "llm",
+        "text"
+      ]
+    },
+    "text": {
+      "module": "commands/text.ts",
+      "flags": [
+        "--format",
+        "--help",
+        "--language",
+        "--limit",
+        "--offset",
+        "--path",
+        "--root"
+      ],
+      "formats": [
+        "json",
+        "llm",
+        "text"
+      ]
+    },
+    "trace": {
+      "module": "commands/trace.ts",
+      "flags": [
+        "--cap",
+        "--depth",
+        "--downstream",
+        "--format",
+        "--help",
+        "--include-tests",
+        "--kind",
+        "--path",
+        "--pick",
+        "--strict",
+        "--tests-only",
+        "--to",
+        "--upstream"
+      ],
+      "formats": [
+        "json",
+        "llm",
+        "text"
+      ]
+    },
+    "upgrade": {
+      "module": "commands/upgrade.ts",
+      "flags": [
+        "--check",
+        "--help"
+      ],
+      "formats": []
+    },
+    "verify": {
+      "module": "commands/verify.ts",
+      "flags": [
+        "--format",
+        "--help",
+        "--root",
+        "--sample",
+        "--seed"
+      ],
+      "formats": [
+        "json",
+        "llm",
+        "text"
+      ]
+    },
+    "view": {
+      "module": "commands/view.ts",
+      "flags": [
+        "--all",
+        "--help",
+        "--no-open",
+        "--port"
+      ],
+      "formats": []
+    },
+    "watch": {
+      "module": "commands/watch.ts",
+      "flags": [
+        "--help",
+        "--path",
+        "--root"
+      ],
+      "formats": []
+    }
+  },
+  "proStubs": [
+    "briefing",
+    "bug",
+    "decide",
+    "decisions",
+    "goal",
+    "goals",
+    "plan",
+    "plans",
+    "task",
+    "tasks",
+    "truth",
+    "workflow"
+  ]
+}

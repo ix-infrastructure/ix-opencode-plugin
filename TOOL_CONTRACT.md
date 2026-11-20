@@ -39,6 +39,8 @@ The string-only output constraint comes from the OpenCode runtime. Returning obj
 
 If `ix locate` returns multiple matches, returns the first result plus a note to narrow with `--kind` or `--path`.
 
+- **Stale map:** when `ix locate` or `ix explain` reports the architecture map stale (`map_stale: true`, Ix#880), adds one line under the heading, once even if both report it (preferring the one with `regions_as_of`): `` _Map is stale (regions as of map rev 7, 42 files); recent edits may not be reflected — run `ix map --remap` to refresh it now._ `` (the parenthetical only when Ix gives `regions_as_of`). Without the field (fresh map, older CLI) the output is unchanged.
+
 **Example output:**
 ```
 ## ix-query: UserService
@@ -124,6 +126,8 @@ Error: <error message>
 
 Risk levels: `low` → `SAFE TO PROCEED`, `medium` → `REVIEW CALLERS FIRST`, `high`/`critical` → `NEEDS CHANGE PLAN`. A withheld `riskLevel: "unknown"` (hollow or empty graph) → `CANNOT ASSESS`, with Ix's `graph` verdict and fix.
 
+- **Stale map:** when `ix impact` reports the architecture map stale (`map_stale: true`, Ix#880), adds one line under the heading: `` _Map is stale (regions as of map rev 7, 42 files); recent edits may not be reflected — run `ix map --remap` to refresh it now._ `` (the parenthetical only when Ix gives `regions_as_of`). Without the field (fresh map, older CLI) the output is unchanged.
+
 **Example output:**
 ```
 ## Impact: runtime/cli.ts
@@ -172,6 +176,7 @@ Risk levels: `low` → `SAFE TO PROCEED`, `medium` → `REVIEW CALLERS FIRST`, `
 - Lists `scores[]` from `ix subsystems --list` as subsystem health
 - Takes the file count from `stats.nodes.byKind` (kind `file`) and totals from `nodes.total` / `edges.total`
 - Flags multi-file subsystems with low cohesion (< 0.4) with ⚠. Ix's `coupling` is an edge-weight count, not a 0–1 ratio, so it is shown but not judged
+- When either `ix subsystems` call reports the architecture map stale (`map_stale: true`, Ix#880), adds one line under the heading: `` _Map is stale (regions as of map rev 7, 42 files); recent edits may not be reflected — run `ix map --remap` to refresh it now._ `` (the parenthetical only when Ix gives `regions_as_of`). Without the field (fresh map, older CLI) the output is unchanged
 
 **Example output:**
 ```
@@ -314,6 +319,8 @@ Graph-based features (ix-query, ix-neighbors, ix-impact, ix-map) work without Pr
 | `standard` | above + `ix stats`, and `ix explain` for the first 5 of overview's `keyItems` |
 | `full` | above + `ix impact` for change risk context |
 
+- **Stale map:** when `ix overview` or `ix locate` reports the architecture map stale (`map_stale: true`, Ix#880), adds one line under the heading, once (preferring the one with `regions_as_of`): `` _Map is stale (regions as of map rev 7, 42 files); recent edits may not be reflected — run `ix map --remap` to refresh it now._ `` (the parenthetical only when Ix gives `regions_as_of`). Without the field (fresh map, older CLI) the output is unchanged.
+
 **Example output (standard):**
 ```
 ## Context: runtime/cli.ts
@@ -352,7 +359,9 @@ _55 files · 870 nodes_
 
 **Parameters:** `symbol` (required)
 
-**CLI:** `ix explain <symbol> --format json`
+**CLI:** `ix explain <symbol> --format json` (or `--format llm` on a CLI that supports it)
+
+- **Stale map:** when Ix reports the architecture map stale (JSON `map_stale: true`, or the llm `diagnostic code=map_stale` record; Ix#880), adds one line under the heading and does not repeat the raw record: `` _Map is stale (regions as of map rev 7, 42 files); recent edits may not be reflected — run `ix map --remap` to refresh it now._ `` (the parenthetical only when Ix gives `regions_as_of`). Without it the output is unchanged. This is separate from `facts.stale` (the file changed since the last ingest), which keeps its own line.
 
 ---
 
@@ -382,7 +391,9 @@ _55 files · 870 nodes_
 
 **Parameters:** none
 
-**CLI:** `ix subsystems --format json`
+**CLI:** `ix subsystems --format llm` (CLI ≥ 0.7.0), else `ix subsystems --format json`
+
+When Ix reports the architecture map stale (llm `diagnostic code=map_stale` record, or JSON `map_stale: true`; Ix#880), the same stale line as `ix-map` goes under the heading and the raw diagnostic record is not repeated. Without it the output is unchanged.
 
 ---
 
@@ -412,7 +423,7 @@ _55 files · 870 nodes_
 
 **Parameters:** `touched_paths` (required array), `intent` (default `edit`), `risk_tolerance` (default `medium`)
 
-**CLI:** `ix impact <path> --format json` per touched file (first 5) — synthesizes a conservative verdict from `riskLevel` and the dependent counts under `summary` (`directImporters + directDependents + memberLevelCallers` for a file, `callers` for a function: the same total Ix's risk inference uses). Subsystems come from `propagationBuckets[].region`.
+**CLI:** `ix impact <path> --format json` per touched file (first 5) — synthesizes a conservative verdict from `riskLevel` and the dependent counts under `summary` (for a file, the larger of the file-level count -- `dependentList.length`, the de-duplicated importers and dependents Ix prints since v0.14.0, else `directImporters + directDependents` -- and `memberLevelCallers`; for a function, `callers`. The counts overlap, so they are not added: a file's importers are mostly the same code as its members' callers. This matches the OpenClaw plugin's `max(importers + dependents, memberLevelCallers, callers)`). Subsystems come from `propagationBuckets[].region`.
 
 **Fails closed.** ALLOW is only given when every touched path has a parsed impact record with a real risk level and dependent counts.
 

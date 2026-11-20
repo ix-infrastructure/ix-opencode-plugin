@@ -32,6 +32,7 @@ import { homedir } from "node:os";
 import path from "node:path";
 
 import { safeRun } from "./cli.ts";
+import { parseIxError } from "./ix-error.ts";
 
 export type AutoMapOutcome =
   | "no-project"   // no project dir to work from
@@ -109,6 +110,9 @@ async function isMapped(root: string): Promise<boolean> {
     timeoutMs: STATUS_TIMEOUT_MS,
   });
   if (out === null) return false;
+  // An error record (`{"error": ...}`) is "no" too; checked first, as every
+  // other `--format json` read is.
+  if (parseIxError(out)) return false;
   try {
     return (JSON.parse(out) as { graphCompleted?: unknown }).graphCompleted === true;
   } catch {

@@ -22,9 +22,12 @@ If the result is empty or returns an error, stop: *"No graph data yet — run `i
 ## Pro check
 
 ```bash
-ix briefing --format llm 2>&1
+ix briefing --format json 2>/dev/null; echo "exit=$?"
 ```
-If it returns JSON with a `revision` field, Pro is available. Note `recentDecisions` for use below. Skip all **[Pro]** steps if it errors.
+Read the exit code, not the wording:
+- `exit=0` and a JSON object: Ix Pro is available. Use `recentDecisions` from it in the **[Pro]** steps below. A field may be empty or `null`.
+- non-zero exit and nothing else on stdout: Ix Pro is not installed. Without Pro, `ix` answers every Pro command with "requires Ix Pro" on stderr and exit 1. That is the normal answer, not an error: skip every **[Pro]** step and do not mention it.
+- non-zero exit and a JSON error record (`{"error": ..., "message": ...}`): Pro is installed but could not answer. Skip the **[Pro]** steps and say so in one line, quoting `message`.
 
 ## Phase 1 — System structure
 
@@ -75,7 +78,7 @@ ix subsystems <region> --explain
 
 If Pro is available, after the analysis completes:
 ```bash
-ix decisions --format llm
+ix decisions --format json
 ```
 Append a **Recorded Decisions** section cross-referencing relevant design decisions against the findings — especially decisions that affect god-modules, high-coupling regions, or the hotspots identified.
 

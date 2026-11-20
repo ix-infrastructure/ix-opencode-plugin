@@ -9,6 +9,7 @@
 
 import { runIx, failureDetail } from "../runtime/cli.ts";
 import { formatIxError, parseIxError } from "../runtime/ix-error.ts";
+import { mapStaleFromJson, mapStaleLine, type MapStale } from "../runtime/map-stale.ts";
 import { toolCwd } from "../runtime/paths.ts";
 
 export const name = "ix-query";
@@ -75,12 +76,16 @@ export async function execute(
     return `**ix-query: ${params.symbol}**\n\nFailed to parse locate output. Raw:\n\`\`\`\n${locateOutput.slice(0, 500)}\n\`\`\``;
   }
 
+  // Both `ix locate` and `ix explain` read the map's regions and say when it
+  // is stale (Ix#880); one line under the heading, from whichever said it.
+  const locateStale = mapStaleFromJson(locate);
+
   // `ix locate` resolves to one entity (`resolvedTarget`), or to none with the
   // `candidates` it could not choose between (`resolutionMode: "ambiguous"`).
   const target = locate.resolvedTarget;
   const candidates = locate.candidates ?? [];
   if (!target) {
-    if (candidates.length > 0) return formatCandidates(params.symbol, candidates);
+    if (candidates.length > 0) return formatCandidates(params.symbol, candidates, locateStale);
     return `**ix-query: ${params.symbol}**\n\nNo matches found in the graph. The symbol may not be indexed yet. Try \`ix map\` to refresh.`;
   }
 
@@ -104,19 +109,21 @@ export async function execute(
   if (target.kind) explainArgs.push("--kind", target.kind);
   if (target.path) explainArgs.push("--path", target.path);
   const explainRun = await runIx(explainArgs, dir);
-  if (!explainRun?.stdout.trim()) return formatLocateOnly(params.symbol, entity);
+  if (!explainRun?.stdout.trim()) return formatLocateOnly(params.symbol, entity, locateStale);
   const explainOutput = explainRun.stdout;
-  if (parseIxError(explainOutput)) return formatLocateOnly(params.symbol, entity);
+  if (parseIxError(explainOutput)) return formatLocateOnly(params.symbol, entity, locateStale);
 
   let explain: ExplainRecord;
   try {
     explain = JSON.parse(explainOutput);
   } catch {
-    return formatLocateOnly(params.symbol, entity);
+    return formatLocateOnly(params.symbol, entity, locateStale);
   }
-  if (!explain.facts && !explain.role) return formatLocateOnly(params.symbol, entity);
+  if (!explain.facts && !explain.role) return formatLocateOnly(params.symbol, entity, locateStale);
 
-  return formatResult(params.symbol, entity, explain);
+  const explainStale = mapStaleFromJson(explain);
+  const stale = [explainStale, locateStale].find((s) => s?.regionsAsOf) ?? explainStale ?? locateStale;
+  return formatResult(params.symbol, entity, explain, stale);
 }
 
 /** The fields `ix locate --format json` emits (Ix commands/locate.ts). */
@@ -156,13 +163,20 @@ function where(e: Entity): string {
   return e.lines?.start !== undefined ? `${e.path}:${e.lines.start}` : e.path;
 }
 
+/** The stale-map line and its blank line, or nothing. */
+function staleLines(stale: MapStale | null): string[] {
+  return stale ? [mapStaleLine(stale), ""] : [];
+}
+
 function formatCandidates(
   symbol: string,
   candidates: { name?: string; kind?: string; path?: string }[],
+  stale: MapStale | null,
 ): string {
   const lines = [
     `## ix-query: ${symbol}`,
     "",
+    ...staleLines(stale),
     `**Ambiguous:** ${candidates.length} entities match. Narrow with \`kind\` or \`path\`:`,
   ];
   for (const c of candidates.slice(0, 10)) {
@@ -171,10 +185,11 @@ function formatCandidates(
   return lines.join("\n");
 }
 
-function formatLocateOnly(symbol: string, entity: Entity): string {
+function formatLocateOnly(symbol: string, entity: Entity, stale: MapStale | null): string {
   const lines = [
     `## ix-query: ${symbol}`,
     "",
+    ...staleLines(stale),
     `**Found:** \`${entity.name}\` (${entity.kind}) — ${where(entity)}`,
   ];
   if (entity.system.length > 0) lines.push(`**Subsystem:** ${entity.system.join(" › ")}`);
@@ -182,11 +197,12 @@ function formatLocateOnly(symbol: string, entity: Entity): string {
   return lines.join("\n");
 }
 
-function formatResult(symbol: string, entity: Entity, explain: ExplainRecord): string {
+function formatResult(symbol: string, entity: Entity, explain: ExplainRecord, stale: MapStale | null): string {
   const facts = explain.facts ?? {};
   const lines = [
     `## ix-query: ${symbol}`,
     "",
+    ...staleLines(stale),
     `**Name:** \`${entity.name}\``,
     `**Kind:** ${entity.kind}`,
     `**File:** ${where({ ...entity, path: entity.path ?? facts.path })}`,
